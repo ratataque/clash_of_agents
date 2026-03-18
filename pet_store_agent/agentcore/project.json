@@ -1,0 +1,13 @@
+{
+  "name": "PetStoreAgent",
+  "version": "1.0.0",
+  "agents": {
+    "PetStoreAgent": {
+      "path": "..",
+      "entrypoint": "agentcore_entrypoint.py",
+      "runtime": "python3.12",
+      "framework": "strands"
+    }
+  },
+  "defaultAgent": "PetStoreAgent"
+}

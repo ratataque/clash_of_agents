@@ -11,13 +11,13 @@ agents:
     container_runtime: null
     source_path: ./
     aws:
-      execution_role: arn:aws:iam::134163042273:role/team-SolutionAccessRole-rmvrxsDNhkdg
+      execution_role: arn:aws:iam::799631972281:role/team-SolutionAccessRole-zEw6Ch57eaBE
       execution_role_auto_create: false
-      account: '134163042273'
+      account: '799631972281'
       region: us-east-1
       ecr_repository: null
       ecr_auto_create: false
-      s3_path: s3://team-codebucketforautomation-hdbbptq89odh
+      s3_path: s3://team-codebucketforautomation-lxmeitl2bpuf
       s3_auto_create: false
       network_configuration:
         network_mode: PUBLIC
@@ -30,8 +30,8 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: StrandsAgentCoreRuntime-ckQxmq427P
-      agent_arn: arn:aws:bedrock-agentcore:us-east-1:134163042273:runtime/StrandsAgentCoreRuntime-ckQxmq427P
+      agent_id: StrandsAgentCoreRuntime-rAC5z64Rfo
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:799631972281:runtime/StrandsAgentCoreRuntime-rAC5z64Rfo
       agent_session_id: null
     codebuild:
       project_name: null
@@ -71,13 +71,13 @@ agents:
     container_runtime: null
     source_path: ./
     aws:
-      execution_role: arn:aws:iam::134163042273:role/team-SolutionAccessRole-rmvrxsDNhkdg
+      execution_role: arn:aws:iam::799631972281:role/team-SolutionAccessRole-zEw6Ch57eaBE
       execution_role_auto_create: false
-      account: '134163042273'
+      account: '799631972281'
       region: us-east-1
       ecr_repository: null
       ecr_auto_create: false
-      s3_path: s3://team-codebucketforautomation-hdbbptq89odh
+      s3_path: s3://team-codebucketforautomation-lxmeitl2bpuf
       s3_auto_create: false
       network_configuration:
         network_mode: PUBLIC
@@ -90,8 +90,8 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: StrandsAgentCoreRuntime-ckQxmq427P
-      agent_arn: arn:aws:bedrock-agentcore:us-east-1:134163042273:runtime/StrandsAgentCoreRuntime-ckQxmq427P
+      agent_id: StrandsAgentCoreRuntime-rAC5z64Rfo
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:799631972281:runtime/StrandsAgentCoreRuntime-rAC5z64Rfo
       agent_session_id: null
     codebuild:
       project_name: null

@@ -1,0 +1,8 @@
+{
+  "default": {
+    "region": "us-east-1",
+    "account": "799631972281",
+    "executionRoleArn": "arn:aws:iam::799631972281:role/team-SolutionAccessRole-zEw6Ch57eaBE",
+    "s3Bucket": "team-codebucketforautomation-lxmeitl2bpuf"
+  }
+}

@@ -47,3 +47,9 @@ Response: Valid JSON with status=Accept, price=$54.99, shippingCost=$14.95
 
 - In `pet_store_agent.py`, adding an explicit top-level JSON-only mandate plus concrete Reject-mode examples for prompt injection, unethical requests, and out-of-scope pets materially improves model adherence to structured output in failure/rejection paths.
 - Nova Pro behavior tracks in-context examples strongly; rejection-format drift is best corrected by exemplar-based reinforcement adjacent to existing happy-path samples.
+
+## 2026-03-18 Task: Multi-agent pet store architecture
+
+- Strands sequential multi-agent chaining works reliably by instantiating multiple `Agent` objects with specialized prompts/models and passing serialized JSON outputs between stages.
+- A lightweight JSON extractor fallback (parse raw JSON, then regex object extraction) is useful to normalize occasional model wrappers while still returning schema-safe output.
+- Running classifier on `us.amazon.nova-lite-v1:0` plus retrieval/formatting on `us.amazon.nova-pro-v1:0` keeps safety gating fast without degrading answer quality.

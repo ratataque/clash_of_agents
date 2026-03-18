@@ -105,7 +105,7 @@ def retrieve_product_info(tool: ToolUse, **kwargs: Any) -> ToolResult:
         default_region = os.environ.get(
             "RETRIEVAL_DEFAULT_REGION",
             os.environ.get(
-                "AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-west-2")
+                "AWS_DEFAULT_REGION", os.environ.get("AWS_REGION", "us-east-1")
             ),
         )
         default_min_score = _safe_float(
