@@ -60,6 +60,5 @@ done < "$env_file"
 echo "Deploying from $agent_dir using $env_file ..."
 (
   cd "$agent_dir"
-  agentcore deploy --yes --verbose "${extra_args[@]}"
+  agentcore deploy "${extra_args[@]}"
 )
-
