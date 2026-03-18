@@ -28,7 +28,14 @@ if [[ ! -f "$yaml_file" ]]; then
   exit 1
 fi
 
-python - "$yaml_file" "$prompt" <<'PY'
+python_bin="python"
+if [[ -x ".venv/bin/python" ]]; then
+  python_bin=".venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  python_bin="python3"
+fi
+
+"$python_bin" - "$yaml_file" "$prompt" <<'PY'
 import json
 import sys
 import uuid
@@ -36,6 +43,7 @@ from pathlib import Path
 
 import boto3
 import yaml
+from botocore.exceptions import UnknownServiceError
 
 yaml_file = Path(sys.argv[1])
 prompt = sys.argv[2]
@@ -58,13 +66,23 @@ print(f"Agent ID: {agent_id}")
 print(f"Agent ARN: {agent_arn}")
 print(f"Region: {region}")
 
-control_client = boto3.client("bedrock-agentcore-control", region_name=region)
-status = control_client.get_agent_runtime(agentRuntimeId=agent_id).get("status")
-print(f"Runtime status: {status}")
-if status != "READY":
-    raise SystemExit(f"Error: runtime is not READY (status={status})")
+try:
+    control_client = boto3.client("bedrock-agentcore-control", region_name=region)
+    status = control_client.get_agent_runtime(agentRuntimeId=agent_id).get("status")
+    print(f"Runtime status: {status}")
+    if status != "READY":
+        raise SystemExit(f"Error: runtime is not READY (status={status})")
+except UnknownServiceError:
+    print("Runtime status check skipped: local boto3/botocore lacks 'bedrock-agentcore-control'.")
+    print("Tip: use repo venv (`source .venv/bin/activate`) or upgrade boto3/botocore.")
 
-data_client = boto3.client("bedrock-agentcore", region_name=region)
+try:
+    data_client = boto3.client("bedrock-agentcore", region_name=region)
+except UnknownServiceError:
+    raise SystemExit(
+        "Error: local boto3/botocore lacks 'bedrock-agentcore'. "
+        "Activate the repo venv (`source .venv/bin/activate`) or upgrade boto3/botocore."
+    )
 invoke_response = data_client.invoke_agent_runtime(
     agentRuntimeArn=agent_arn,
     qualifier="DEFAULT",
@@ -94,4 +112,3 @@ else:
     else:
         print(body)
 PY
-
