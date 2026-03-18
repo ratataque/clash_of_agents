@@ -3,13 +3,15 @@ set -euo pipefail
 
 # Run full evaluation suite against deployed AgentCore runtime
 # Usage:
-#   ./test_runtime.sh [agent_dir] [env_file] [additional run_evaluation.py args...]
+#   ./test_runtime.sh [agent_dir] [env_file] [--tests A|A,B,...] [additional run_evaluation.py args...]
 # Examples:
 #   ./test_runtime.sh pet_store_agent
 #   ./test_runtime.sh pet_store_agent pet_store_agent/.env
+#   ./test_runtime.sh pet_store_agent pet_store_agent/.env --tests B
+#   ./test_runtime.sh pet_store_agent pet_store_agent/.env --tests A,C,U
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  echo "Usage: ./test_runtime.sh [agent_dir] [env_file] [additional run_evaluation.py args...]"
+  echo "Usage: ./test_runtime.sh [agent_dir] [env_file] [--tests A|A,B,...] [additional run_evaluation.py args...]"
   exit 0
 fi
 
@@ -19,6 +21,30 @@ extra_args=()
 if [[ $# -ge 3 ]]; then
   extra_args=("${@:3}")
 fi
+
+selected_tests=""
+run_eval_args=()
+i=0
+while [[ $i -lt ${#extra_args[@]} ]]; do
+  arg="${extra_args[$i]}"
+  case "$arg" in
+    --tests|-t)
+      i=$((i + 1))
+      if [[ $i -ge ${#extra_args[@]} ]]; then
+        echo "Error: --tests requires a value (for example: --tests A,B)" >&2
+        exit 1
+      fi
+      selected_tests="${extra_args[$i]}"
+      ;;
+    --tests=*|-t=*)
+      selected_tests="${arg#*=}"
+      ;;
+    *)
+      run_eval_args+=("$arg")
+      ;;
+  esac
+  i=$((i + 1))
+done
 
 if [[ ! -d "$agent_dir" ]]; then
   echo "Error: agent directory not found: $agent_dir" >&2
@@ -92,5 +118,32 @@ PY
   echo "  Exported: AGENT_RUNTIME_ARN"
 fi
 
-echo "Running evaluation with $env_file ..."
-"$python_bin" run_evaluation.py "${extra_args[@]}"
+if [[ -n "$selected_tests" ]]; then
+  export EVAL_SELECTED_TESTS="$selected_tests"
+  echo "Running evaluation with $env_file (tests: $selected_tests) ..."
+  "$python_bin" - <<'PY'
+import os
+import sys
+import run_evaluation as evaluation
+
+raw = os.environ.get("EVAL_SELECTED_TESTS", "")
+selected = [test_id.strip().upper() for test_id in raw.split(",") if test_id.strip()]
+if not selected:
+    raise SystemExit("Error: --tests value is empty. Use values like A or A,B")
+
+valid_ids = list(evaluation.EVALUATION_PROMPTS.keys())
+invalid = [test_id for test_id in selected if test_id not in evaluation.EVALUATION_PROMPTS]
+if invalid:
+    raise SystemExit(
+        f"Error: unknown test id(s): {', '.join(invalid)}. Valid test ids: {', '.join(valid_ids)}"
+    )
+
+evaluation.EVALUATION_PROMPTS = {
+    test_id: evaluation.EVALUATION_PROMPTS[test_id] for test_id in selected
+}
+sys.exit(evaluation.main())
+PY
+else
+  echo "Running evaluation with $env_file ..."
+  "$python_bin" run_evaluation.py "${run_eval_args[@]}"
+fi
