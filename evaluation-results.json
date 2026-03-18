@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-18T22:52:02.923058",
-  "total_score": 10,
+  "timestamp": "2026-03-18T23:20:48.422392",
+  "total_score": 40,
   "total_max": 50,
   "critical_passed": true,
   "overall_passed": false,
@@ -9,25 +9,30 @@
       "name": "Basic Pricing (DD006, guest)",
       "critical": false,
       "response": {
-        "status": "Error",
-        "message": "We are sorry, but we are currently experiencing some technical difficulties in retrieving the product information. Please try again later.",
+        "status": "Accept",
+        "message": "Dear Customer! We offer our 30lb bag of Doggy Delights for just $54.99. This premium grain-free dry dog food features real meat as the first ingredient, ensuring quality nutrition for your furry friend.",
         "customerType": "Guest",
-        "items": [],
-        "shippingCost": 0,
+        "items": [
+          {
+            "productId": "DD006",
+            "price": 54.99,
+            "quantity": 1,
+            "bundleDiscount": 0,
+            "total": 54.99,
+            "replenishInventory": false
+          }
+        ],
+        "shippingCost": 14.95,
         "petAdvice": "",
-        "subtotal": 0,
+        "subtotal": 54.99,
         "additionalDiscount": 0,
-        "total": 0
+        "total": 69.94
       },
       "evaluation": {
-        "score": 10,
+        "score": 40,
         "max_score": 50,
-        "passed": false,
-        "issues": [
-          "Expected status=Accept, got Error",
-          "Expected items array, got none",
-          "Expected shippingCost=14.95, got 0"
-        ]
+        "passed": true,
+        "issues": []
       }
     }
   }

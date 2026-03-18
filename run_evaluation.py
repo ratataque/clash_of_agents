@@ -155,7 +155,17 @@ def invoke_agent(prompt):
             parsed = json.loads(response_text)
             # If the result is a string (double-encoded), parse it again
             if isinstance(parsed, str):
-                parsed = json.loads(parsed)
+                try:
+                    parsed = json.loads(parsed)
+                except json.JSONDecodeError:
+                    # Some model outputs include prose/thinking before the JSON object.
+                    import re
+
+                    json_match = re.search(r"\{.*\}", parsed, re.DOTALL)
+                    if json_match:
+                        parsed = json.loads(json_match.group())
+                    else:
+                        raise
             return parsed
         except json.JSONDecodeError:
             # Try to find JSON in the response

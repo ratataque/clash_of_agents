@@ -80,7 +80,12 @@ def retrieve_product_info(tool: ToolUse, **kwargs: Any) -> ToolResult:
         # Extract parameters
         query = tool_input["text"]
         number_of_results = tool_input.get("numberOfResults", 10)
-        region_name = tool_input.get("region", os.environ.get('AWS_REGION', 'us-west-2'))
+        region_name = tool_input.get(
+            "region",
+            os.environ.get("AWS_REGION")
+            or os.environ.get("AWS_DEFAULT_REGION")
+            or "us-west-2",
+        )
         min_score = tool_input.get("score", 0.25)
 
         # Create a new client for each invocation
