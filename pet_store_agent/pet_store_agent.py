@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 import boto3
 
+from guardrails import GuardrailEngine
 from pricing_tool import calculate_pricing_data
 
 logger = logging.getLogger(__name__)
@@ -67,24 +68,6 @@ PRICING_PROMPT_XML = """<agent name="pricing">
 ADVICE_PROMPT_XML = """<agent name="advice">
   <goal>Fetch pet-care guidance only for subscribed customers when requested.</goal>
 </agent>"""
-
-UNSAFE_PATTERNS = (
-    "harm animals",
-    "animal cruelty",
-    "kill animals",
-)
-
-INJECTION_PATTERNS = (
-    "ignore all previous instructions",
-    "reveal your system prompt",
-    "internal rules",
-)
-
-OUT_OF_SCOPE_PATTERNS = (
-    "hamster",
-    "parrot",
-    "bird seed",
-)
 
 NUMBER_WORDS = {
     "one": 1,
@@ -210,9 +193,7 @@ def _resolve_customer_context(prompt: str) -> CustomerContext:
     )
 
 
-def _contains_any(text: str, patterns: tuple) -> bool:
-    lower = text.lower()
-    return any(pattern in lower for pattern in patterns)
+GUARDRAIL_ENGINE = GuardrailEngine()
 
 
 def _load_inventory_catalog() -> List[Dict]:
@@ -238,6 +219,27 @@ def _retrieve_product_kb_text(customer_request: str) -> str:
     )
 
 
+def _extract_catalog_entries_from_kb_text(kb_text: str) -> Dict[str, Dict[str, str]]:
+    compact = re.sub(r"\s+", " ", kb_text)
+    pattern = re.compile(
+        r"\b([A-Z]{2,3}\d{3})\s+"
+        r"([A-Za-z][A-Za-z0-9\-\s&']{2,60}?)\s+"
+        r"(.{10,220}?)\s+"
+        r"(Cats(?:\s*&\s*Dogs)?|Dogs|Cats)\s+\$([0-9]+\.[0-9]{2})\b",
+        flags=re.IGNORECASE,
+    )
+    entries: Dict[str, Dict[str, str]] = {}
+    for match in pattern.finditer(compact):
+        code, name, description, pet_type, price = match.groups()
+        entries[code.upper()] = {
+            "name": name.strip(),
+            "description": description.strip(),
+            "petType": pet_type.strip(),
+            "price": price,
+        }
+    return entries
+
+
 def _extract_item_mentions(customer_request: str) -> List[Tuple[str, int]]:
     qty_tokens = "|".join(list(NUMBER_WORDS.keys()) + [r"\d+"])
     pattern = re.compile(
@@ -253,6 +255,9 @@ def _extract_item_mentions(customer_request: str) -> List[Tuple[str, int]]:
         cleaned = re.sub(r"\b(please|thanks|thank you)\b$", "", phrase.strip(), flags=re.IGNORECASE).strip()
         if cleaned:
             mentions.append((cleaned, qty))
+    generic_phrase_match = re.search(r"\b(cat|dog)\s+food\b", customer_request, flags=re.IGNORECASE)
+    if generic_phrase_match:
+        mentions.append((generic_phrase_match.group(0), 1))
     if mentions:
         return mentions
     return [(customer_request.strip(), 1)]
@@ -292,6 +297,10 @@ def _extract_requested_items(customer_request: str) -> List[RequestedItem]:
         return []
     candidate_codes = list(dict.fromkeys(re.findall(r"\b[A-Z]{2,3}\d{3}\b", kb_text.upper())))
     if not candidate_codes:
+        kb_text = _retrieve_product_kb_text("product catalog with product code and price for dogs and cats")
+        candidate_codes = list(dict.fromkeys(re.findall(r"\b[A-Z]{2,3}\d{3}\b", kb_text.upper())))
+    catalog_entries = _extract_catalog_entries_from_kb_text(kb_text)
+    if not candidate_codes:
         return []
 
     inventory_catalog = _load_inventory_catalog()
@@ -310,16 +319,20 @@ def _extract_requested_items(customer_request: str) -> List[RequestedItem]:
             if code in used_codes and len(valid_codes) > len(mentions):
                 continue
             inv_name = str(inventory_by_code[code].get("name", ""))
+            entry = catalog_entries.get(code, {})
+            entry_name = str(entry.get("name", inv_name))
+            entry_description = str(entry.get("description", ""))
             snippet = _context_snippet_for_code(kb_text, code)
             score = (
-                (_similarity(phrase, inv_name) * 0.5)
-                + (_token_overlap(phrase, inv_name) * 0.35)
-                + (_similarity(phrase, snippet) * 0.15)
+                (_similarity(phrase, entry_name) * 0.45)
+                + (_token_overlap(phrase, entry_name) * 0.35)
+                + (_token_overlap(phrase, entry_description) * 0.35)
+                + (_token_overlap(phrase, snippet) * 0.45)
             )
             if score > best_score:
                 best_score = score
                 best_code = code
-        if best_code:
+        if best_code and best_score >= 0.17:
             resolved.append(RequestedItem(product_id=best_code, quantity=qty))
             used_codes.add(best_code)
 
@@ -417,26 +430,17 @@ def process_request(prompt: str) -> Dict:
         customer_request = _extract_customer_request(prompt)
         customer = _resolve_customer_context(prompt)
 
-        if _contains_any(customer_request, INJECTION_PATTERNS):
-            logger.info(SAFETY_PROMPT_XML)
-            return _base_response(
-                "Reject",
-                _build_reject_message("I can’t provide internal instructions or system details."),
-                customer.customer_type,
+        logger.info(SAFETY_PROMPT_XML)
+        guardrail = GUARDRAIL_ENGINE.evaluate(prompt=prompt, customer_request=customer_request)
+        if guardrail.blocked:
+            logger.warning(
+                "guardrail.blocked code=%s patterns=%s",
+                guardrail.code,
+                guardrail.matched_patterns,
             )
-
-        if _contains_any(customer_request, UNSAFE_PATTERNS):
-            logger.info(SAFETY_PROMPT_XML)
             return _base_response(
                 "Reject",
-                _build_reject_message("I can’t help with harming animals or unsafe requests."),
-                customer.customer_type,
-            )
-
-        if _contains_any(customer_request, OUT_OF_SCOPE_PATTERNS):
-            return _base_response(
-                "Reject",
-                _build_reject_message("we currently support only cat and dog related products."),
+                guardrail.message or "We are sorry, we can't accept your request. What else do you need?",
                 customer.customer_type,
             )
 
