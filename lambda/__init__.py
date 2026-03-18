@@ -1,3 +1,0 @@
-"""
-Lambda functions package
-"""
