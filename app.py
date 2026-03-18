@@ -19,24 +19,23 @@ env = cdk.Environment(account=account, region=region)
 # Project name for resource naming
 project_name = "ClashOfAgents"
 
+# AgentCore Stack - S3, CloudWatch (deployed first, no dependencies)
+agentcore_stack = AgentCoreStack(
+    app,
+    f"{project_name}-AgentCoreStack",
+    env=env,
+    description="AgentCore runtime and agent deployment resources"
+)
+
 # Security Stack - KMS keys, IAM roles, Secrets Manager
 security_stack = SecurityStack(
     app,
     f"{project_name}-SecurityStack",
     env=env,
+    agent_bucket=agentcore_stack.agent_bucket,
     description="Security resources for Strands Agent deployment"
 )
-
-# AgentCore Stack - Bedrock AgentCore Runtime, ECR, S3
-agentcore_stack = AgentCoreStack(
-    app,
-    f"{project_name}-AgentCoreStack",
-    env=env,
-    kms_key=security_stack.kms_key,
-    agent_execution_role=security_stack.agent_execution_role,
-    description="AgentCore runtime and agent deployment resources"
-)
-agentcore_stack.add_dependency(security_stack)
+security_stack.add_dependency(agentcore_stack)
 
 # Add tags to all resources
 cdk.Tags.of(app).add("Project", project_name)

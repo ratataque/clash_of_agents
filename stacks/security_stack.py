@@ -6,6 +6,7 @@ from aws_cdk import (
     RemovalPolicy,
     aws_kms as kms,
     aws_iam as iam,
+    aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
 )
 from constructs import Construct
@@ -14,7 +15,13 @@ from constructs import Construct
 class SecurityStack(Stack):
     """Stack for security resources: KMS keys, IAM roles, secrets"""
     
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self, 
+        scope: Construct, 
+        construct_id: str,
+        agent_bucket: s3.Bucket,
+        **kwargs
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
         
         # KMS Key for encryption at rest
@@ -72,3 +79,6 @@ class SecurityStack(Stack):
         
         # Grant secret read access to agent role
         self.agent_secrets.grant_read(self.agent_execution_role)
+        
+        # Grant S3 bucket access to agent role
+        agent_bucket.grant_read_write(self.agent_execution_role)
