@@ -36,3 +36,12 @@ This tool is self-contained and doesn't depend on other modules. Ready for Task 
 1. The Strands Agent constructor in this environment accepts the tools list but does not expose a public `tools` attribute, so verification that inspects `agent.tools` needs the module to attach that list after construction.
 2. Wave 1 orchestration works best with a tightly constrained system prompt that forces the sequence retrieve_product_info -> get_inventory -> calculate_order_pricing -> format_order_response and forbids manual math/JSON.
 3. The required environment-variable validation can stay unchanged even though Wave 1 does not call pet care or user tools, preserving compatibility with the existing runtime configuration contract.
+
+
+## Task 4: pet_store_agent.py Dual Guest/Subscribed Flow Update (2026-03-18)
+
+### Key Insights
+1. The agent supports a mixed tools list containing both module-style retrieval tools (`retrieve_product_info`, `retrieve_pet_care`) and `@tool` function tools (`get_inventory`, `get_user_by_id`, `get_user_by_email`, `calculate_order_pricing`, `format_order_response`).
+2. Prompt reliability improves when execution is split into explicit branch flows: Guest (no identity) vs Known User (CustomerId/email lookup first), with strict conditions for `customerType="Subscribed"`.
+3. Pet advice should be constrained in prompt logic to subscribed users with a pet-related ask; otherwise enforce `petAdvice=""` to preserve legacy guest behavior.
+4. Preserving Test A while enabling Test B is primarily a prompt+tool wiring change; no pricing or formatter code changes are required for the current scoring criteria.
