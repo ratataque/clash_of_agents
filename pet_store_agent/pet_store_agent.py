@@ -2,8 +2,10 @@ import json
 import logging
 import os
 import re
+import warnings
+from difflib import SequenceMatcher
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import boto3
 
@@ -11,6 +13,11 @@ from pricing_tool import calculate_pricing_data
 
 logger = logging.getLogger(__name__)
 logging.getLogger().setLevel(logging.INFO)
+warnings.filterwarnings(
+    "ignore",
+    message="urllib3 .* doesn't match a supported version!",
+    category=Warning,
+)
 
 
 @dataclass
@@ -61,32 +68,6 @@ ADVICE_PROMPT_XML = """<agent name="advice">
   <goal>Fetch pet-care guidance only for subscribed customers when requested.</goal>
 </agent>"""
 
-PRODUCT_CATALOG: Dict[str, Dict] = {
-    "CM001": {"name": "Meow Munchies", "price": 24.99, "petType": "Cats"},
-    "DB002": {"name": "Bark Bites", "price": 12.99, "petType": "Dogs"},
-    "PT003": {"name": "Purr-fect Playtime", "price": 15.99, "petType": "Cats"},
-    "WL004": {"name": "Wag-a-licious", "price": 19.99, "petType": "Dogs"},
-    "KK005": {"name": "Kitty Krunchers", "price": 8.99, "petType": "Cats"},
-    "DD006": {"name": "Doggy Delights", "price": 54.99, "petType": "Dogs"},
-    "SS007": {"name": "Scratch Sensation", "price": 79.99, "petType": "Cats"},
-    "FF008": {"name": "Fetch Frenzy", "price": 9.99, "petType": "Dogs"},
-    "CC009": {"name": "Catnip Craze", "price": 11.99, "petType": "Cats"},
-    "BP010": {"name": "Bark Park Buddy", "price": 16.99, "petType": "Dogs"},
-    "LL011": {"name": "Litter Lifter", "price": 29.99, "petType": "Cats"},
-    "PP012": {"name": "Paw-some Pampering", "price": 22.99, "petType": "Dogs"},
-    "FF013": {"name": "Feline Fiesta", "price": 34.99, "petType": "Cats"},
-    "CC014": {"name": "Canine Carnival", "price": 45.99, "petType": "Dogs"},
-    "PM015": {"name": "Paw-ty Mix", "price": 27.99, "petType": "Cats & Dogs"},
-}
-
-PRODUCT_ALIASES: Dict[str, List[str]] = {
-    "DD006": ["doggy delights", "dog food"],
-    "BP010": ["bark park buddy", "water bottle", "water bottles"],
-    "CM001": ["meow munchies", "cozy meow bed", "cozy meow beds", "cat food"],
-    "DB002": ["bark bites", "deluxe bark collar"],
-    "PT003": ["purr-fect playtime", "premium cat treats", "cat treats"],
-}
-
 UNSAFE_PATTERNS = (
     "harm animals",
     "animal cruelty",
@@ -121,6 +102,10 @@ NUMBER_WORDS = {
 
 def _runtime_region() -> str:
     return os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
+
+
+def _configured_model_id() -> str:
+    return os.environ.get("BEDROCK_MODEL_ID", "us.amazon.nova-pro-v1:0")
 
 
 def _base_response(status: str, message: str, customer_type: str = "Guest") -> Dict:
@@ -174,7 +159,11 @@ def _qty_from_token(token: str) -> Optional[int]:
 
 def _extract_quantity_near_phrase(text: str, phrase: str) -> Optional[int]:
     qty_tokens = "|".join(list(NUMBER_WORDS.keys()) + [r"\d+"])
-    pattern = rf"\b({qty_tokens})\s+(?:units?\s+of\s+|units?\s+|x\s*)?(?:the\s+)?{re.escape(phrase)}\b"
+    pattern = (
+        rf"\b({qty_tokens})\s+"
+        rf"(?:(?:units?|packages?|packs?)\s+of\s+|(?:units?|packages?|packs?)\s+|x\s*)?"
+        rf"(?:the\s+)?{re.escape(phrase)}\b"
+    )
     match = re.search(pattern, text, flags=re.IGNORECASE)
     if not match:
         return None
@@ -226,27 +215,115 @@ def _contains_any(text: str, patterns: tuple) -> bool:
     return any(pattern in lower for pattern in patterns)
 
 
+def _load_inventory_catalog() -> List[Dict]:
+    response = _invoke_lambda("SYSTEM_FUNCTION_1_NAME", {"function": "getInventory", "parameters": []})
+    if isinstance(response, list):
+        return response
+    return []
+
+
+def _retrieve_product_kb_text(customer_request: str) -> str:
+    kb_id = os.environ.get("KNOWLEDGE_BASE_1_ID")
+    if not kb_id:
+        return ""
+    client = boto3.client("bedrock-agent-runtime", region_name=_runtime_region())
+    response = client.retrieve(
+        retrievalQuery={"text": customer_request},
+        knowledgeBaseId=kb_id,
+        retrievalConfiguration={"vectorSearchConfiguration": {"numberOfResults": 5}},
+    )
+    results = response.get("retrievalResults", [])
+    return "\n".join(
+        r.get("content", {}).get("text", "") for r in results if r.get("content", {}).get("text")
+    )
+
+
+def _extract_item_mentions(customer_request: str) -> List[Tuple[str, int]]:
+    qty_tokens = "|".join(list(NUMBER_WORDS.keys()) + [r"\d+"])
+    pattern = re.compile(
+        rf"\b({qty_tokens})\s+"
+        rf"(?:(?:units?|packages?|packs?)\s+of\s+|(?:units?|packages?|packs?)\s+)?"
+        rf"(?:the\s+)?(.+?)"
+        rf"(?=\s+\band\b\s+(?:{qty_tokens})\b|[?.!,]|$)",
+        flags=re.IGNORECASE,
+    )
+    mentions: List[Tuple[str, int]] = []
+    for qty_token, phrase in pattern.findall(customer_request):
+        qty = _qty_from_token(qty_token) or 1
+        cleaned = re.sub(r"\b(please|thanks|thank you)\b$", "", phrase.strip(), flags=re.IGNORECASE).strip()
+        if cleaned:
+            mentions.append((cleaned, qty))
+    if mentions:
+        return mentions
+    return [(customer_request.strip(), 1)]
+
+
+def _similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def _token_overlap(a: str, b: str) -> float:
+    a_tokens = {t for t in re.findall(r"[a-zA-Z]{3,}", a.lower())}
+    b_tokens = {t for t in re.findall(r"[a-zA-Z]{3,}", b.lower())}
+    if not a_tokens:
+        return 0.0
+    return len(a_tokens.intersection(b_tokens)) / len(a_tokens)
+
+
+def _context_snippet_for_code(kb_text: str, code: str) -> str:
+    idx = kb_text.upper().find(code.upper())
+    if idx < 0:
+        return ""
+    start = max(0, idx - 120)
+    end = min(len(kb_text), idx + 220)
+    return kb_text[start:end]
+
+
 def _extract_requested_items(customer_request: str) -> List[RequestedItem]:
     found: Dict[str, int] = {}
-    lower_request = customer_request.lower()
+    explicit_codes = set(re.findall(r"\b[A-Z]{2,3}\d{3}\b", customer_request.upper()))
+    for code in explicit_codes:
+        found[code] = _extract_quantity_for_code(customer_request, code) or 1
+    if found:
+        return [RequestedItem(product_id=code, quantity=qty) for code, qty in found.items()]
 
-    for code in set(re.findall(r"\b[A-Z]{2,3}\d{3}\b", customer_request.upper())):
-        if code not in PRODUCT_CATALOG:
-            found[code] = 1
-            continue
-        qty = _extract_quantity_for_code(customer_request, code) or 1
-        found[code] = max(found.get(code, 1), qty)
+    kb_text = _retrieve_product_kb_text(customer_request)
+    if not kb_text:
+        return []
+    candidate_codes = list(dict.fromkeys(re.findall(r"\b[A-Z]{2,3}\d{3}\b", kb_text.upper())))
+    if not candidate_codes:
+        return []
 
-    for code, phrases in PRODUCT_ALIASES.items():
-        for phrase in phrases:
-            if phrase in lower_request:
-                qty = _extract_quantity_near_phrase(customer_request, phrase) or 1
-                found[code] = max(found.get(code, 1), qty)
+    inventory_catalog = _load_inventory_catalog()
+    inventory_by_code = {item.get("product_code"): item for item in inventory_catalog if item.get("product_code")}
+    valid_codes = [code for code in candidate_codes if code in inventory_by_code]
+    if not valid_codes:
+        return []
 
-    if not found and "cat food" in lower_request:
-        found["CM001"] = 1
+    mentions = _extract_item_mentions(customer_request)
+    used_codes = set()
+    resolved: List[RequestedItem] = []
+    for phrase, qty in mentions:
+        best_code = None
+        best_score = -1.0
+        for code in valid_codes:
+            if code in used_codes and len(valid_codes) > len(mentions):
+                continue
+            inv_name = str(inventory_by_code[code].get("name", ""))
+            snippet = _context_snippet_for_code(kb_text, code)
+            score = (
+                (_similarity(phrase, inv_name) * 0.5)
+                + (_token_overlap(phrase, inv_name) * 0.35)
+                + (_similarity(phrase, snippet) * 0.15)
+            )
+            if score > best_score:
+                best_score = score
+                best_code = code
+        if best_code:
+            resolved.append(RequestedItem(product_id=best_code, quantity=qty))
+            used_codes.add(best_code)
 
-    return [RequestedItem(product_id=code, quantity=qty) for code, qty in found.items()]
+    return resolved
 
 
 def _load_inventory(product_id: str) -> Dict:
@@ -284,11 +361,43 @@ def _generate_pet_advice(customer_request: str) -> str:
     return text[:500]
 
 
-def _build_accept_message(customer_name: Optional[str], items: List[Dict], customer_request: str) -> str:
+def _extract_price_for_code_from_text(text: str, product_id: str) -> Optional[float]:
+    pattern = re.compile(
+        rf"\b{re.escape(product_id)}\b\s+[A-Za-z][A-Za-z0-9\-\s&']{{1,120}}?\s+.*?\$\s*([0-9]+\.[0-9]{{2}})",
+        re.IGNORECASE | re.DOTALL,
+    )
+    match = pattern.search(text)
+    if not match:
+        return None
+    return float(match.group(1))
+
+
+def _retrieve_price_from_kb(product_id: str, inventory_name: str, customer_request: str) -> Optional[float]:
+    kb_id = os.environ.get("KNOWLEDGE_BASE_1_ID")
+    if not kb_id:
+        return None
+
+    query = f"{product_id} {inventory_name} price {customer_request}".strip()
+    client = boto3.client("bedrock-agent-runtime", region_name=_runtime_region())
+    response = client.retrieve(
+        retrievalQuery={"text": query},
+        knowledgeBaseId=kb_id,
+        retrievalConfiguration={"vectorSearchConfiguration": {"numberOfResults": 5}},
+    )
+    results = response.get("retrievalResults", [])
+    joined_text = "\n".join(
+        r.get("content", {}).get("text", "") for r in results if r.get("content", {}).get("text")
+    )
+    if not joined_text:
+        return None
+    return _extract_price_for_code_from_text(joined_text, product_id)
+
+
+def _build_accept_message(customer_name: Optional[str], items: List[Dict], item_names: Dict[str, str]) -> str:
     greeting = f"Hi {customer_name}," if customer_name else "Dear Customer,"
     if len(items) == 1:
         item = items[0]
-        name = PRODUCT_CATALOG.get(item["productId"], {}).get("name", item["productId"])
+        name = item_names.get(item["productId"], "this product")
         return f"{greeting} {name} is available at ${item['price']:.2f}."
     return f"{greeting} your requested products are available and ready for checkout."
 
@@ -298,103 +407,119 @@ def _build_reject_message(reason: str) -> str:
 
 
 def process_request(prompt: str) -> Dict:
-    logger.info("orchestrator.start")
-    logger.info(ORCHESTRATOR_PROMPT_XML)
-    customer_request = _extract_customer_request(prompt)
-    customer = _resolve_customer_context(prompt)
-
-    if _contains_any(customer_request, INJECTION_PATTERNS):
-        logger.info(SAFETY_PROMPT_XML)
-        return _base_response(
-            "Reject",
-            _build_reject_message("I can’t provide internal instructions or system details."),
-            customer.customer_type,
+    try:
+        logger.info("orchestrator.start")
+        logger.info(
+            "%s\n<runtime><modelId>%s</modelId></runtime>",
+            ORCHESTRATOR_PROMPT_XML,
+            _configured_model_id(),
         )
+        customer_request = _extract_customer_request(prompt)
+        customer = _resolve_customer_context(prompt)
 
-    if _contains_any(customer_request, UNSAFE_PATTERNS):
-        logger.info(SAFETY_PROMPT_XML)
-        return _base_response(
-            "Reject",
-            _build_reject_message("I can’t help with harming animals or unsafe requests."),
-            customer.customer_type,
-        )
-
-    if _contains_any(customer_request, OUT_OF_SCOPE_PATTERNS):
-        return _base_response(
-            "Reject",
-            _build_reject_message("we currently support only cat and dog related products."),
-            customer.customer_type,
-        )
-
-    if "sold out" in customer_request.lower():
-        return _base_response(
-            "Reject",
-            _build_reject_message("that item is currently unavailable."),
-            customer.customer_type,
-        )
-
-    logger.info(PRODUCT_PROMPT_XML)
-    requested_items = _extract_requested_items(customer_request)
-    if not requested_items:
-        return _base_response(
-            "Reject",
-            _build_reject_message("I could not identify a supported product request."),
-            customer.customer_type,
-        )
-
-    items_for_pricing: List[Dict] = []
-    for req_item in requested_items:
-        if req_item.product_id not in PRODUCT_CATALOG:
-            return _base_response(
-                "Error",
-                "We are sorry, we could not process the requested product due to missing catalog data.",
-                customer.customer_type,
-            )
-
-        logger.info(INVENTORY_PROMPT_XML)
-        inventory = _load_inventory(req_item.product_id)
-        if "error" in inventory:
-            return _base_response(
-                "Error",
-                "We are sorry, we could not retrieve inventory details for your request.",
-                customer.customer_type,
-            )
-
-        if inventory.get("status") == "out_of_stock" or inventory.get("quantity", 0) < req_item.quantity:
+        if _contains_any(customer_request, INJECTION_PATTERNS):
+            logger.info(SAFETY_PROMPT_XML)
             return _base_response(
                 "Reject",
-                _build_reject_message(f"{PRODUCT_CATALOG[req_item.product_id]['name']} is currently unavailable."),
+                _build_reject_message("I can’t provide internal instructions or system details."),
                 customer.customer_type,
             )
 
-        projected = int(inventory.get("quantity", 0)) - req_item.quantity
-        reorder_level = int(inventory.get("reorder_level", 0))
-        items_for_pricing.append(
-            {
-                "productId": req_item.product_id,
-                "price": PRODUCT_CATALOG[req_item.product_id]["price"],
-                "quantity": req_item.quantity,
-                "replenishInventory": projected <= reorder_level,
-            }
+        if _contains_any(customer_request, UNSAFE_PATTERNS):
+            logger.info(SAFETY_PROMPT_XML)
+            return _base_response(
+                "Reject",
+                _build_reject_message("I can’t help with harming animals or unsafe requests."),
+                customer.customer_type,
+            )
+
+        if _contains_any(customer_request, OUT_OF_SCOPE_PATTERNS):
+            return _base_response(
+                "Reject",
+                _build_reject_message("we currently support only cat and dog related products."),
+                customer.customer_type,
+            )
+
+        if "sold out" in customer_request.lower():
+            return _base_response(
+                "Reject",
+                _build_reject_message("that item is currently unavailable."),
+                customer.customer_type,
+            )
+
+        logger.info(PRODUCT_PROMPT_XML)
+        requested_items = _extract_requested_items(customer_request)
+        if not requested_items:
+            return _base_response(
+                "Reject",
+                _build_reject_message("I could not identify a supported product request."),
+                customer.customer_type,
+            )
+
+        items_for_pricing: List[Dict] = []
+        item_names: Dict[str, str] = {}
+        for req_item in requested_items:
+            logger.info(INVENTORY_PROMPT_XML)
+            inventory = _load_inventory(req_item.product_id)
+            if "error" in inventory:
+                return _base_response(
+                    "Error",
+                    "We are sorry, we could not retrieve inventory details for your request.",
+                    customer.customer_type,
+                )
+
+            if inventory.get("status") == "out_of_stock" or inventory.get("quantity", 0) < req_item.quantity:
+                product_name = inventory.get("name", req_item.product_id)
+                return _base_response(
+                    "Reject",
+                    _build_reject_message(f"{product_name} is currently unavailable."),
+                    customer.customer_type,
+                )
+
+            product_name = inventory.get("name", req_item.product_id)
+            product_price = _retrieve_price_from_kb(req_item.product_id, product_name, customer_request)
+            if product_price is None:
+                return _base_response(
+                    "Error",
+                    "We are sorry, we could not retrieve product pricing from our catalog at the moment.",
+                    customer.customer_type,
+                )
+
+            item_names[req_item.product_id] = product_name
+            projected = int(inventory.get("quantity", 0)) - req_item.quantity
+            reorder_level = int(inventory.get("reorder_level", 0))
+            items_for_pricing.append(
+                {
+                    "productId": req_item.product_id,
+                    "price": product_price,
+                    "quantity": req_item.quantity,
+                    "replenishInventory": projected <= reorder_level,
+                }
+            )
+
+        logger.info(PRICING_PROMPT_XML)
+        pricing = calculate_pricing_data(items_for_pricing)
+
+        pet_advice = ""
+        if customer.is_subscribed and _needs_pet_advice(customer_request):
+            logger.info(ADVICE_PROMPT_XML)
+            pet_advice = _generate_pet_advice(customer_request)
+
+        return {
+            "status": "Accept",
+            "message": _build_accept_message(customer.name, pricing["items"], item_names),
+            "customerType": customer.customer_type,
+            "items": pricing["items"],
+            "shippingCost": pricing["shippingCost"],
+            "petAdvice": pet_advice,
+            "subtotal": pricing["subtotal"],
+            "additionalDiscount": pricing["additionalDiscount"],
+            "total": pricing["total"],
+        }
+    except Exception as exc:
+        logger.exception("process_request.failed: %s", str(exc))
+        return _base_response(
+            "Error",
+            "We are sorry, we are currently experiencing technical difficulties.",
+            "Guest",
         )
-
-    logger.info(PRICING_PROMPT_XML)
-    pricing = calculate_pricing_data(items_for_pricing)
-
-    pet_advice = ""
-    if customer.is_subscribed and _needs_pet_advice(customer_request):
-        logger.info(ADVICE_PROMPT_XML)
-        pet_advice = _generate_pet_advice(customer_request)
-
-    response = {
-        "status": "Accept",
-        "message": _build_accept_message(customer.name, pricing["items"], customer_request),
-        "customerType": customer.customer_type,
-        "items": pricing["items"],
-        "shippingCost": pricing["shippingCost"],
-        "petAdvice": pet_advice,
-        "subtotal": pricing["subtotal"],
-        "additionalDiscount": pricing["additionalDiscount"],
-        "total": pricing["total"],
-    }
-    return response

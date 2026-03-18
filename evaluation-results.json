@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-18T23:43:21.262258",
+  "timestamp": "2026-03-19T00:21:35.120472",
   "total_score": 1000,
   "total_max": 1000,
   "critical_passed": true,
@@ -103,19 +103,19 @@
             "replenishInventory": true
           },
           {
-            "productId": "DB002",
-            "price": 12.99,
+            "productId": "BP010",
+            "price": 16.99,
             "quantity": 1,
             "bundleDiscount": 0.0,
-            "total": 12.99,
+            "total": 16.99,
             "replenishInventory": false
           }
         ],
         "shippingCost": 14.95,
         "petAdvice": "",
-        "subtotal": 60.47,
+        "subtotal": 64.47,
         "additionalDiscount": 0.0,
-        "total": 75.42
+        "total": 79.42
       },
       "evaluation": {
         "score": 100,
@@ -150,23 +150,23 @@
       "critical": false,
       "response": {
         "status": "Accept",
-        "message": "Hi Bob Wilson, Meow Munchies is available at $24.99.",
+        "message": "Hi Bob Wilson, Kitty Krunchers is available at $8.99.",
         "customerType": "Guest",
         "items": [
           {
-            "productId": "CM001",
-            "price": 24.99,
+            "productId": "KK005",
+            "price": 8.99,
             "quantity": 1,
             "bundleDiscount": 0.0,
-            "total": 24.99,
+            "total": 8.99,
             "replenishInventory": false
           }
         ],
         "shippingCost": 14.95,
         "petAdvice": "",
-        "subtotal": 24.99,
+        "subtotal": 8.99,
         "additionalDiscount": 0.0,
-        "total": 39.94
+        "total": 23.94
       },
       "evaluation": {
         "score": 100,
@@ -222,7 +222,7 @@
       "critical": false,
       "response": {
         "status": "Error",
-        "message": "We are sorry, we could not process the requested product due to missing catalog data.",
+        "message": "We are sorry, we could not retrieve inventory details for your request.",
         "customerType": "Subscribed",
         "items": [],
         "shippingCost": 0.0,

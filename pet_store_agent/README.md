@@ -48,7 +48,7 @@ RETRIEVAL_DEFAULT_RESULTS=5
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BEDROCK_MODEL_ID` | `us.amazon.nova-pro-v1:0` | Bedrock foundation model to use |
+| `BEDROCK_MODEL_ID` | `us.amazon.nova-pro-v1:0` | Model ID loaded by orchestrator runtime config (XML runtime metadata/logging) |
 | `BEDROCK_MAX_TOKENS` | `4096` | Maximum tokens per response |
 | `BEDROCK_STREAMING` | `false` | Enable/disable streaming responses |
 | `RETRIEVAL_DEFAULT_REGION` | `us-west-2` | AWS region for KB retrieval |
