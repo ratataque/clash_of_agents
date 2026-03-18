@@ -185,71 +185,81 @@ def invoke_agent(prompt):
 
 def evaluate_response(test_id, response, expected):
     """Evaluate a response against expected criteria"""
-    score = 0
     max_score = EVALUATION_PROMPTS[test_id]["points"]
     issues = []
+    checks_total = 0
+    checks_passed = 0
+
+    def check(condition, issue_message):
+        nonlocal checks_total, checks_passed
+        checks_total += 1
+        if condition:
+            checks_passed += 1
+        else:
+            issues.append(issue_message)
 
     # Check status
     if "status" in expected:
-        if response.get("status") == expected["status"]:
-            score += max_score * 0.3
-        else:
-            issues.append(
-                f"Expected status={expected['status']}, got {response.get('status')}"
-            )
+        check(
+            response.get("status") == expected["status"],
+            f"Expected status={expected['status']}, got {response.get('status')}",
+        )
 
     # Check customerType
     if "customerType" in expected:
-        if response.get("customerType") == expected["customerType"]:
-            score += max_score * 0.2
-        else:
-            issues.append(
-                f"Expected customerType={expected['customerType']}, got {response.get('customerType')}"
-            )
+        check(
+            response.get("customerType") == expected["customerType"],
+            f"Expected customerType={expected['customerType']}, got {response.get('customerType')}",
+        )
 
     # Check items
     if expected.get("has_items"):
-        if response.get("items") and len(response["items"]) > 0:
-            score += max_score * 0.2
-        else:
-            issues.append("Expected items array, got none")
+        has_items = response.get("items") and len(response["items"]) > 0
+        check(bool(has_items), "Expected items array, got none")
+
+    # Check item count
+    if "item_count" in expected:
+        count = len(response.get("items", []) or [])
+        check(
+            count == expected["item_count"],
+            f"Expected item_count={expected['item_count']}, got {count}",
+        )
 
     # Check pet advice
     if expected.get("has_pet_advice"):
-        if response.get("petAdvice") and len(response.get("petAdvice", "")) > 10:
-            score += max_score * 0.1
-        else:
-            issues.append("Expected petAdvice, got none or empty")
+        check(
+            bool(response.get("petAdvice")) and len(response.get("petAdvice", "")) > 10,
+            "Expected petAdvice, got none or empty",
+        )
+    elif "has_pet_advice" in expected and expected["has_pet_advice"] is False:
+        check(
+            not response.get("petAdvice"),
+            "Expected no petAdvice, but got petAdvice content",
+        )
 
     # Check bundle discount
     if "bundleDiscount" in expected:
         items = response.get("items", [])
-        if items and items[0].get("bundleDiscount") == expected["bundleDiscount"]:
-            score += max_score * 0.1
-        else:
-            issues.append(f"Expected bundleDiscount={expected['bundleDiscount']}")
+        check(
+            bool(items) and items[0].get("bundleDiscount") == expected["bundleDiscount"],
+            f"Expected bundleDiscount={expected['bundleDiscount']}",
+        )
 
     # Check shipping
     if "shippingCost" in expected:
-        if response.get("shippingCost") == expected["shippingCost"]:
-            score += max_score * 0.1
-        else:
-            issues.append(
-                f"Expected shippingCost={expected['shippingCost']}, got {response.get('shippingCost')}"
-            )
+        check(
+            response.get("shippingCost") == expected["shippingCost"],
+            f"Expected shippingCost={expected['shippingCost']}, got {response.get('shippingCost')}",
+        )
 
     # Check free shipping for bulk orders
     if expected.get("check_free_shipping"):
         subtotal = response.get("subtotal", 0)
         shipping = response.get("shippingCost", 0)
-        if subtotal >= 300 and shipping == 0:
-            score += max_score * 0.1
-        elif subtotal < 300 and shipping == 14.95:
-            score += max_score * 0.1
-        else:
-            issues.append(
-                f"Free shipping rule violation: subtotal={subtotal}, shipping={shipping}"
-            )
+        check(
+            (subtotal >= 300 and shipping == 0) or (subtotal < 300 and shipping == 14.95),
+            f"Free shipping rule violation: subtotal={subtotal}, shipping={shipping}",
+        )
 
     # For rejection tests, give full points if status is Reject
     if (
@@ -260,6 +270,8 @@ def evaluate_response(test_id, response, expected):
         if response.get("status") == "Reject":
             score = max_score
             issues = []
+            checks_total = 1
+            checks_passed = 1
 
     # For error tests
     if expected.get("graceful_error"):
@@ -269,14 +281,20 @@ def evaluate_response(test_id, response, expected):
         ):
             score = max_score
             issues = []
+            checks_total = 1
+            checks_passed = 1
 
-    # Round score
+    if checks_total > 0 and "score" not in locals():
+        score = round((checks_passed / checks_total) * max_score)
+    elif checks_total == 0 and "score" not in locals():
+        score = 0
+
     score = min(round(score), max_score)
 
     return {
         "score": score,
         "max_score": max_score,
-        "passed": score >= max_score * 0.6,
+        "passed": len(issues) == 0,
         "issues": issues,
     }
 
