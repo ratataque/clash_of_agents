@@ -13,7 +13,7 @@
 > 
 > **Estimated Effort**: Medium
 > **Parallel Execution**: YES - 2 waves
-> **Critical Path**: Task 1 (pricing tool) → Task 2 (formatter tool) → Task 3 (orchestrator) → Task 4 (entrypoints + deploy) → Task 5 (test & fix)
+ > **Critical Path**: Task 1 | Task 2 (parallel) → Task 3 (orchestrator) → Task 4 (entrypoints + deploy) → Task 5 (test & fix)
 
 ---
 
@@ -145,7 +145,7 @@ Wave FINAL (After ALL tasks — verification):
 
 ## TODOs
 
-- [ ] 1. Create deterministic pricing calculator tool (`pricing.py`)
+- [x] 1. Create deterministic pricing calculator tool (`pricing.py`)
 
   **What to do**:
   - Create `pet_store_agent/pricing.py` with a `@tool`-decorated function `calculate_order_pricing`
@@ -248,7 +248,7 @@ Wave FINAL (After ALL tasks — verification):
   - Message: `feat(pricing): add deterministic pricing calculator tool`
   - Files: `pet_store_agent/pricing.py`
 
-- [ ] 2. Create deterministic response formatter tool (`response_formatter.py`)
+- [x] 2. Create deterministic response formatter tool (`response_formatter.py`)
 
   **What to do**:
   - Create `pet_store_agent/response_formatter.py` with a `@tool`-decorated function `format_order_response`
@@ -362,7 +362,7 @@ Wave FINAL (After ALL tasks — verification):
   - Message: `feat(formatter): add response formatter tool`
   - Files: `pet_store_agent/response_formatter.py`
 
-- [ ] 3. Rewrite `pet_store_agent.py` as orchestrator agent
+- [x] 3. Rewrite `pet_store_agent.py` as orchestrator agent
 
   **What to do**:
   - Rewrite `pet_store_agent/pet_store_agent.py` to be an orchestrator agent
@@ -467,7 +467,7 @@ Wave FINAL (After ALL tasks — verification):
   - Message: `refactor(agent): replace monolithic agent with orchestrator pattern`
   - Files: `pet_store_agent/pet_store_agent.py`
 
-- [ ] 4. Update entrypoints and deploy
+- [x] 4. Update entrypoints and deploy
 
   **What to do**:
   - Verify `pet_store_agent/agentcore_entrypoint.py` still works with the rewritten `pet_store_agent.py` — it should since we kept the same `process_request()` interface. If imports changed, update them.
@@ -538,7 +538,7 @@ Wave FINAL (After ALL tasks — verification):
   - Message: `chore(deploy): update entrypoints for orchestrator agent`
   - Files: `pet_store_agent/agentcore_entrypoint.py`, `pet_store_agent/lambda_function.py` (only if changes needed)
 
-- [ ] 5. Test against Prompt A and iterate until passing
+- [x] 5. Test against Prompt A and iterate until passing
 
   **What to do**:
   - Run `python run_test_a.py` against the deployed agent
@@ -649,7 +649,7 @@ Wave FINAL (After ALL tasks — verification):
 | Commit | Message | Files | Pre-commit |
 |--------|---------|-------|------------|
 | 1 | `feat(pricing): add deterministic pricing calculator tool` | `pet_store_agent/pricing.py` | `python -c "from pricing import calculate_order_pricing"` |
-| 2 | `feat(formatter): add response formatter tool` | `pet_store_agent/response_formatter.py` | `python -c "from response_formatter import format_response"` |
+| 2 | `feat(formatter): add response formatter tool` | `pet_store_agent/response_formatter.py` | `python -c "from response_formatter import format_order_response"` |
 | 3 | `refactor(agent): replace monolithic agent with orchestrator pattern` | `pet_store_agent/pet_store_agent.py`, `pet_store_agent/agentcore_entrypoint.py`, `pet_store_agent/lambda_function.py` | `python -c "from pet_store_agent import create_agent"` |
 | 4 | `test(wave1): verify Prompt A passes at 50/50` | — (no file changes, deployment + test) | `python run_test_a.py` |
 

@@ -1,17 +1,11 @@
 {
-  "active_plan": "/home/ewan/projets/clash_of_agents/.sisyphus/plans/bedrock-agents-assessment.md",
-  "started_at": "2026-03-18T16:42:35.258Z",
+  "active_plan": "/home/ewan/projets/clash_of_agents/.sisyphus/plans/wave1-prompt-a.md",
+  "started_at": "2026-03-18T21:38:41.515Z",
   "session_ids": [
-    "ses_2fe907db2ffeSF6YOgi2ySEw8Y",
-    "ses_2fe2aacdfffeH0Q3wxf7arwj15",
-    "ses_2fe0782d9ffeT92LDFVWXC8ejR",
-    "ses_2fdfa2780ffeU1MH8tUkMCYQ3p",
-    "ses_2fdf8b631ffekKTTFFNvZeABPE",
-    "ses_2fdf438ddffeHWEsznHJiE2spl",
-    "ses_2fde14291ffeeKqT0KeYdAhQ52",
-    "ses_2fdd7be9bffe1wvOIRNV7OK4WD",
-    "ses_2fdd7d43fffejHXp8RgmurIfFR",
-    "ses_2fdd7a8a2ffeMO5mo8vJKLmD8q"
+    "ses_2fd2c9db7ffeqhQHgIJS7N3Cvf",
+    "ses_2fd1b62dbffeaBOONCf60pZW5h",
+    "ses_2fd191c3effeMS9HfwBz2GzbRW",
+    "ses_2fd168a60ffe133IAKAnqZVXud"
   ],
-  "plan_name": "bedrock-agents-assessment"
+  "plan_name": "wave1-prompt-a"
 }

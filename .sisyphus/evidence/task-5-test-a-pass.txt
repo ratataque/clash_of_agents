@@ -1,0 +1,35 @@
+=== Test A: Basic Pricing (DD006, guest) ===
+Prompt: A new user is asking about the price of Doggy Delights?
+Started: 2026-03-18T22:56:46.149717
+
+Raw response:
+{
+  "status": "Accept",
+  "message": "Dear Customer! Doggy Delights is our premium grain-free dry dog food made with real meat as the first ingredient and includes probiotics for your pup's health. This 30lb bag is perfect for keeping your furry friend happy and healthy!",
+  "customerType": "Guest",
+  "items": [
+    {
+      "productId": "DD006",
+      "price": 54.99,
+      "quantity": 1,
+      "bundleDiscount": 0,
+      "total": 54.99,
+      "replenishInventory": false
+    }
+  ],
+  "shippingCost": 14.95,
+  "petAdvice": "",
+  "subtotal": 69.94,
+  "additionalDiscount": 0.0,
+  "total": 69.94
+}
+
+Checks:
+  ✅ status=Accept
+  ✅ customerType=Guest
+  ✅ has items
+  ✅ shippingCost=14.95
+  ✅ productId=DD006
+  ✅ price=54.99
+
+PASS
