@@ -496,7 +496,7 @@ Parallel Speedup: ~50% faster than sequential
 
 ---
 
-- [ ] 7. Deploy agent to AgentCore
+- [x] 7. Deploy agent to AgentCore
 
   **What to do**:
   - Upload notebooks to SageMaker Studio:

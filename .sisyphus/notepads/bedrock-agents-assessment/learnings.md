@@ -31,3 +31,19 @@ Lambda User: team-PetStoreUserManagementFunction-WeuPIhjofWMr
 - PetCare2ndKnowledgeBaseId  
 - PetStoreGuardrailId
 - PetStoreGuardrailVersion
+
+## 2026-03-18 Task 7: Agent Deployment Complete
+
+### AgentCore Runtime
+- Name: StrandsAgentCoreRuntime
+- ARN: arn:aws:bedrock-agentcore:us-east-1:799631972281:runtime/StrandsAgentCoreRuntime-rAC5z64Rfo
+- Status: READY
+
+### Test Query Response (Step 8)
+Query: "A new user is asking about the price of Doggy Delights?"
+Response: Valid JSON with status=Accept, price=$54.99, shippingCost=$14.95
+
+## 2026-03-18 Task: JSON-only rejection hardening
+
+- In `pet_store_agent.py`, adding an explicit top-level JSON-only mandate plus concrete Reject-mode examples for prompt injection, unethical requests, and out-of-scope pets materially improves model adherence to structured output in failure/rejection paths.
+- Nova Pro behavior tracks in-context examples strongly; rejection-format drift is best corrected by exemplar-based reinforcement adjacent to existing happy-path samples.
