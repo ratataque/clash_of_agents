@@ -1,6 +1,7 @@
 """
 Test configuration and fixtures
 """
+
 import pytest
 import os
 
@@ -14,7 +15,7 @@ def aws_region():
 @pytest.fixture
 def model_id():
     """Bedrock model ID for tests"""
-    return "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    return "us.anthropic.claude-sonnet-4-6"
 
 
 # Add more shared fixtures

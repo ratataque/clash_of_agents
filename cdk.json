@@ -66,9 +66,13 @@
     "@aws-cdk/aws-s3:keepNotificationInImportedBucket": false,
     "account": "",
     "region": "us-west-2",
-    "model_id": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "model_id": "us.anthropic.claude-sonnet-4-6",
     "cloudwatch_log_retention_days": 30,
     "enable_vpc": true,
-    "enable_guardrails": true
+    "enable_guardrails": true,
+    "extended_thinking_enabled": false,
+    "extended_thinking_budget_tokens": 10000,
+    "prompt_caching_enabled": true,
+    "prompt_caching_ttl_seconds": 3600
   }
 }

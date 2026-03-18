@@ -9,14 +9,15 @@ Production-ready AI agent for the AWS Clash of Agents competition, built with [S
 │  API Gateway    │
 └────────┬────────┘
          │
-┌────────▼────────┐      ┌──────────────────┐
-│  Lambda Handler │─────▶│  Strands Agent   │
-└────────┬────────┘      └────────┬─────────┘
+┌────────▼────────┐      ┌──────────────────────┐
+│  Lambda Handler │─────▶│  Strands Agent       │
+└────────┬────────┘      └────────┬─────────────┘
          │                        │
-         │               ┌────────▼─────────┐
-         │               │  Amazon Bedrock  │
-         │               │  (Claude Sonnet) │
-         │               └──────────────────┘
+         │               ┌────────▼────────────────┐
+         │               │  Amazon Bedrock         │
+         │               │  Claude Sonnet 4.6      │
+         │               │  (1M token context)     │
+         │               └─────────────────────────┘
          │
     ┌────▼─────┐
     │    S3    │  (State & Logs)
@@ -53,7 +54,7 @@ aws configure
 
 # Request Bedrock model access (first time only)
 # Go to: AWS Console → Bedrock → Model access
-# Enable: Claude Sonnet 4 (us.anthropic.claude-sonnet-4-20250514-v1:0)
+# Enable: Claude Sonnet 4.6 (us.anthropic.claude-sonnet-4-6)
 ```
 
 ### 3. Test Locally
@@ -176,6 +177,15 @@ agent = Agent(
 - ✅ CloudWatch logging and monitoring
 - ✅ Bedrock Guardrails (configure in `cdk.json`)
 
+## 🚀 Latest Features (Claude 4.6)
+
+- **1 Million Token Context**: Analyze entire codebases, long documents (no premium pricing)
+- **64K Max Output**: 8x longer responses than Claude 3.5
+- **1-Hour Prompt Caching**: 90% cost reduction + 85% latency reduction for repeated context
+- **Extended Thinking**: Native reasoning API for complex multi-step problems
+- **Enhanced Tool Use**: Parallel tool calling for faster agent execution
+- **Knowledge Cutoff**: April 2025 (vs March 2025 for Claude 4)
+
 ## 📊 Monitoring & Observability
 
 ### CloudWatch Logs
@@ -215,10 +225,39 @@ Configure via `cdk.json` context:
   "context": {
     "account": "YOUR-ACCOUNT-ID",
     "region": "us-west-2",
-    "model_id": "us.anthropic.claude-sonnet-4-20250514-v1:0",
-    "cloudwatch_log_retention_days": 30
+    "model_id": "us.anthropic.claude-sonnet-4-6",
+    "cloudwatch_log_retention_days": 30,
+    "extended_thinking_enabled": false,
+    "extended_thinking_budget_tokens": 10000,
+    "prompt_caching_enabled": true,
+    "prompt_caching_ttl_seconds": 3600
   }
 }
+```
+
+### Advanced Features
+
+**Enable Extended Thinking** (for complex reasoning tasks):
+```python
+agent = create_agent(
+    enable_extended_thinking=True,
+    thinking_budget_tokens=10000
+)
+```
+
+**Configure Prompt Caching** (default: 1-hour TTL):
+```python
+agent = create_agent(
+    enable_prompt_caching=True,
+    cache_ttl_seconds=3600  # 1 hour (3600) or 5 minutes (300)
+)
+```
+
+**Adjust Max Output Tokens**:
+```python
+agent = create_agent(
+    max_tokens=64000  # Up to 64K tokens (vs 8K in Claude 3.5)
+)
 ```
 
 ### Customizing the Agent
