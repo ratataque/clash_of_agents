@@ -10,41 +10,52 @@ set -euo pipefail
 #   ./test_runtime.sh pet_store_agent pet_store_agent/.env --tests B
 #   ./test_runtime.sh pet_store_agent pet_store_agent/.env --tests A,C,U
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  echo "Usage: ./test_runtime.sh [agent_dir] [env_file] [--tests A|A,B,...] [additional run_evaluation.py args...]"
-  exit 0
-fi
-
-agent_dir="${1:-pet_store_agent}"
-env_file="${2:-$agent_dir/.env}"
-extra_args=()
-if [[ $# -ge 3 ]]; then
-  extra_args=("${@:3}")
-fi
-
 selected_tests=""
+positional_args=()
 run_eval_args=()
+all_args=("$@")
 i=0
-while [[ $i -lt ${#extra_args[@]} ]]; do
-  arg="${extra_args[$i]}"
+while [[ $i -lt ${#all_args[@]} ]]; do
+  arg="${all_args[$i]}"
   case "$arg" in
+    -h|--help)
+      echo "Usage: ./test_runtime.sh [agent_dir] [env_file] [--tests A|A,B,...] [additional run_evaluation.py args...]"
+      exit 0
+      ;;
     --tests|-t)
       i=$((i + 1))
-      if [[ $i -ge ${#extra_args[@]} ]]; then
+      if [[ $i -ge ${#all_args[@]} ]]; then
         echo "Error: --tests requires a value (for example: --tests A,B)" >&2
         exit 1
       fi
-      selected_tests="${extra_args[$i]}"
+      selected_tests="${all_args[$i]}"
       ;;
     --tests=*|-t=*)
       selected_tests="${arg#*=}"
       ;;
-    *)
+    --)
+      i=$((i + 1))
+      while [[ $i -lt ${#all_args[@]} ]]; do
+        run_eval_args+=("${all_args[$i]}")
+        i=$((i + 1))
+      done
+      break
+      ;;
+    -*)
       run_eval_args+=("$arg")
+      ;;
+    *)
+      positional_args+=("$arg")
       ;;
   esac
   i=$((i + 1))
 done
+
+agent_dir="${positional_args[0]:-pet_store_agent}"
+env_file="${positional_args[1]:-$agent_dir/.env}"
+if [[ ${#positional_args[@]} -gt 2 ]]; then
+  run_eval_args+=("${positional_args[@]:2}")
+fi
 
 if [[ ! -d "$agent_dir" ]]; then
   echo "Error: agent directory not found: $agent_dir" >&2
