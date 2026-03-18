@@ -30,7 +30,7 @@ if [[ $# -ge 3 ]]; then
   extra_args=("${@:3}")
 fi
 
-env_args=()
+# Export env vars from .env file
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   line="${raw_line%$'\r'}"
   [[ -z "$line" ]] && continue
@@ -53,12 +53,13 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     exit 1
   fi
 
-  env_args+=(--env "${key}=${value}")
+  export "${key}=${value}"
+  echo "  Exported: $key"
 done < "$env_file"
 
 echo "Deploying from $agent_dir using $env_file ..."
 (
   cd "$agent_dir"
-  agentcore deploy --auto-update-on-conflict --force-rebuild-deps "${env_args[@]}" "${extra_args[@]}"
+  agentcore deploy --yes --verbose "${extra_args[@]}"
 )
 
