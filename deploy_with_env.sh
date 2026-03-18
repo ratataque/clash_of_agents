@@ -30,6 +30,14 @@ if [[ $# -ge 3 ]]; then
   extra_args=("${@:3}")
 fi
 
+show_help_only=false
+for arg in "${extra_args[@]}"; do
+  if [[ "$arg" == "--help" ]]; then
+    show_help_only=true
+    break
+  fi
+done
+
 # Export env vars from .env file
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   line="${raw_line%$'\r'}"
@@ -56,6 +64,25 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   export "${key}=${value}"
   echo "  Exported: $key"
 done < "$env_file"
+
+if [[ "$show_help_only" == "false" ]] && command -v aws >/dev/null 2>&1; then
+  config_file="$agent_dir/.bedrock_agentcore.yaml"
+  expected_account=""
+  if [[ -f "$config_file" ]]; then
+    expected_account="$(grep -E "^[[:space:]]*account:[[:space:]]*'?[0-9]{12}'?[[:space:]]*$" "$config_file" | head -n 1 | grep -oE "[0-9]{12}" | head -n 1)"
+  fi
+
+  if [[ -n "$expected_account" ]]; then
+    active_account="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || true)"
+    if [[ -n "$active_account" && "$active_account" != "$expected_account" ]]; then
+      echo "Error: AWS account mismatch for deployment." >&2
+      echo "  Active credentials account:   $active_account" >&2
+      echo "  Agent config expected account: $expected_account" >&2
+      echo "Switch to credentials for account $expected_account and retry." >&2
+      exit 1
+    fi
+  fi
+fi
 
 echo "Deploying from $agent_dir using $env_file ..."
 (
