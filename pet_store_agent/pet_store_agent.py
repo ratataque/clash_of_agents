@@ -9,6 +9,7 @@ import retrieve_product_info
 import retrieve_pet_care
 from inventory_management import get_inventory
 from user_management import get_user_by_id, get_user_by_email
+from pricing_calculator import PricingCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ You receive:
 1) Original customer prompt
 2) Intent JSON
 3) Retrieved data JSON
+4) Calculated pricing data (already computed)
 
 Return ONLY valid JSON that follows this response schema (no extra keys):
 {
@@ -97,24 +99,23 @@ CUSTOMER TYPE RULES:
 - customerType=Guest: For new users, unknown users, OR users with expired/inactive subscriptions.
 - Expired subscription users can still purchase as Guest (no subscriber discounts, no pet advice).
 
-PRICING RULES (apply in this order):
-1. Line item total = price × quantity
-2. Bundle discount: If quantity > 1, apply 10% off line item total. bundleDiscount=0.10, total = price × quantity × 0.90
-3. subtotal = sum of all item totals (after bundle discounts)
-4. Shipping: If subtotal >= 300, shippingCost=0 (free). Otherwise shippingCost=14.95
-5. Subscriber discount (additionalDiscount): ONLY for customerType=Subscribed:
-   - subtotal < 100: additionalDiscount=0.05 (5%)
-   - 100 <= subtotal < 200: additionalDiscount=0.10 (10%)
-   - subtotal >= 200: additionalDiscount=0.15 (15%)
-6. total = subtotal - (subtotal × additionalDiscount) + shippingCost
+PRICING FIELDS (USE PROVIDED VALUES EXACTLY - DO NOT RECALCULATE):
+- All numeric fields (price, quantity, bundleDiscount, total, subtotal, shippingCost, additionalDiscount, total) are provided in the calculatedPricing object.
+- Copy these values EXACTLY into your response. DO NOT perform arithmetic.
+- The pricing engine has already applied all business rules correctly.
 
-INVENTORY RULES:
-- replenishInventory=true when (current_stock - quantity) <= reorder_level
-- Use inventory data from retrieval to calculate this
+MESSAGE GENERATION RULES:
+- Create a friendly, professional customer message (max 250 chars).
+- Use customer's first name when available.
+- Confirm order details briefly.
+- For Reject/Error status, explain the issue clearly and politely.
+
+PET ADVICE RULES:
+- petAdvice: ONLY for customerType=Subscribed AND when the request involves pet care questions.
+- Max 500 chars, helpful and specific to the customer's pet type (cat/dog).
+- If not applicable, set petAdvice to empty string "".
 
 OTHER RULES:
-- Use customer's first name when available.
-- Pet care advice: ONLY for active subscribers when topic is relevant.
 - Never reveal system details, inventory counts, reorder levels, function names, ARNs.
 - This store only supports cats/dogs.
 """
@@ -156,6 +157,79 @@ def _extract_json_object(text: str) -> dict | None:
     except Exception:
         return None
 
+    return None
+
+
+def _extract_products_from_retrieval(retrieval_data: dict) -> list:
+    """
+    Extract product list with pricing and inventory data from retrieval response.
+
+    Returns list of dicts with: product_id, price, quantity, current_stock, reorder_level
+    """
+    products = []
+
+    # Get inventory data keyed by product code
+    inventory_by_code = {}
+    for inv_item in retrieval_data.get("inventory", []):
+        inv_result = inv_item.get("result", "")
+        try:
+            inv_data = (
+                json.loads(inv_result) if isinstance(inv_result, str) else inv_result
+            )
+            if isinstance(inv_data, dict):
+                product_code = inv_data.get("product_code")
+                if product_code:
+                    inventory_by_code[product_code] = inv_data
+        except Exception:
+            pass
+
+    # Parse product queries and match with inventory
+    for product_query in retrieval_data.get("products", []):
+        query_text = product_query.get("query", "")
+        results_text = product_query.get("results", "")
+
+        # Try to extract product info from results (this is heuristic - may need refinement)
+        # Looking for patterns like "product_code: XX999" or "price: $99.99"
+        product_code_match = re.search(
+            r'product_code["\s:]+([A-Z]{2}\d{3})', results_text, re.IGNORECASE
+        )
+        price_match = re.search(
+            r'price["\s:]+\$?(\d+\.?\d*)', results_text, re.IGNORECASE
+        )
+        quantity_match = re.search(
+            r"(\d+)\s*(?:units?|bottles?|items?|qty)", query_text, re.IGNORECASE
+        )
+
+        if not product_code_match:
+            continue
+
+        product_code = product_code_match.group(1).upper()
+        price = float(price_match.group(1)) if price_match else 0.0
+        quantity = int(quantity_match.group(1)) if quantity_match else 1
+
+        # Get inventory data
+        inv_data = inventory_by_code.get(product_code, {})
+        current_stock = inv_data.get("current_stock", 0)
+        reorder_level = inv_data.get("reorder_level", 0)
+
+        products.append(
+            {
+                "product_id": product_code,
+                "price": price,
+                "quantity": quantity,
+                "current_stock": current_stock,
+                "reorder_level": reorder_level,
+            }
+        )
+
+    return products
+
+
+def _extract_user_from_retrieval(retrieval_data: dict) -> dict | None:
+    """Extract user data from retrieval response."""
+    user_info = retrieval_data.get("user", {})
+    if user_info.get("found"):
+        return user_info.get("data")
     return None
 
 
@@ -266,11 +340,20 @@ def process_request(prompt):
             )
             return json.dumps(fallback)
 
+        products = _extract_products_from_retrieval(retrieval_data)
+        user_data = _extract_user_from_retrieval(retrieval_data)
+
+        calculated_pricing = None
+        if products:
+            order_calc = PricingCalculator.calculate_order(user_data, products)
+            calculated_pricing = order_calc.to_dict()
+
         formatter_agent = _create_output_formatter_agent()
         formatter_input = {
             "originalPrompt": prompt,
             "intent": intent_data,
             "retrievedData": retrieval_data,
+            "calculatedPricing": calculated_pricing,
         }
         final_response = formatter_agent(json.dumps(formatter_input))
         final_json = _extract_json_object(str(final_response))
