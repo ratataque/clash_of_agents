@@ -1,29 +1,13 @@
 """
 Amazon Bedrock Knowledge Base retrieval tool for pet care information.
 """
-
 import os
 import boto3
 import logging
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List
 from strands.types.tools import ToolResult, ToolUse
 
 logger = logging.getLogger(__name__)
-
-
-def _safe_int(value: Any, default: int) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _safe_float(value: Any, default: float) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
 
 TOOL_SPEC = {
     "name": "retrieve_pet_care",
@@ -58,9 +42,7 @@ TOOL_SPEC = {
 }
 
 
-def filter_results_by_score(
-    results: List[Dict[str, Any]], min_score: float
-) -> List[Dict[str, Any]]:
+def filter_results_by_score(results: List[Dict[str, Any]], min_score: float) -> List[Dict[str, Any]]:
     """Filter results based on minimum score threshold."""
     return [result for result in results if result.get("score", 0.0) >= min_score]
 
@@ -72,11 +54,7 @@ def format_results_for_display(results: List[Dict[str, Any]]) -> str:
 
     formatted = []
     for result in results:
-        doc_id = (
-            result.get("location", {})
-            .get("customDocumentLocation", {})
-            .get("id", "Unknown")
-        )
+        doc_id = result.get("location", {}).get("customDocumentLocation", {}).get("id", "Unknown")
         score = result.get("score", 0.0)
         formatted.append(f"\nScore: {score:.4f}")
         formatted.append(f"Document ID: {doc_id}")
@@ -91,39 +69,22 @@ def format_results_for_display(results: List[Dict[str, Any]]) -> str:
 
 def retrieve_pet_care(tool: ToolUse, **kwargs: Any) -> ToolResult:
     """Retrieve pet care information from Amazon Bedrock Knowledge Base."""
-
+    
     tool_use_id = tool["toolUseId"]
     tool_input = tool["input"]
     logger.info(f"retrieve_pet_care called with input: {tool_input}")
-
-    kb_id = os.environ.get("KNOWLEDGE_BASE_2_ID")
+    
+    kb_id = os.environ.get('KNOWLEDGE_BASE_2_ID')
 
     try:
-        # Extract parameters with env-driven defaults
+        # Extract parameters
         query = tool_input["text"]
-        default_results = _safe_int(os.environ.get("RETRIEVAL_DEFAULT_RESULTS", 10), 10)
-        default_region = os.environ.get(
-            "RETRIEVAL_DEFAULT_REGION",
-            os.environ.get(
-                "AWS_DEFAULT_REGION", os.environ.get("AWS_REGION", "us-east-1")
-            ),
-        )
-        default_min_score = _safe_float(
-            os.environ.get("RETRIEVAL_DEFAULT_MIN_SCORE", 0.25), 0.25
-        )
-
-        number_of_results = _safe_int(
-            tool_input.get("numberOfResults", default_results), default_results
-        )
-        region_name = tool_input.get("region", default_region)
-        min_score = _safe_float(
-            tool_input.get("score", default_min_score), default_min_score
-        )
+        number_of_results = tool_input.get("numberOfResults", 10)
+        region_name = tool_input.get("region", os.environ.get('AWS_REGION', 'us-west-2'))
+        min_score = tool_input.get("score", 0.25)
 
         # Create a new client for each invocation
-        bedrock_agent_runtime_client = boto3.client(
-            "bedrock-agent-runtime", region_name=region_name
-        )
+        bedrock_agent_runtime_client = boto3.client("bedrock-agent-runtime", region_name=region_name)
 
         # Perform retrieval
         response = bedrock_agent_runtime_client.retrieve(
@@ -146,13 +107,11 @@ def retrieve_pet_care(tool: ToolUse, **kwargs: Any) -> ToolResult:
             "toolUseId": tool_use_id,
             "status": "success",
             "content": [
-                {
-                    "text": f"Retrieved {len(filtered_results)} pet care results with score >= {min_score}:\n{formatted_results}"
-                }
+                {"text": f"Retrieved {len(filtered_results)} pet care results with score >= {min_score}:\n{formatted_results}"}
             ],
         }
         logger.info(f"retrieve_pet_care returning result: {result}")
-        return cast(ToolResult, result)
+        return result
 
     except Exception as e:
         logger.error(f"retrieve_pet_care() error: {str(e)}")
@@ -162,4 +121,4 @@ def retrieve_pet_care(tool: ToolUse, **kwargs: Any) -> ToolResult:
             "content": [{"text": f"Error retrieving pet care information: {str(e)}"}],
         }
         logger.info(f"retrieve_pet_care returning result: {result}")
-        return cast(ToolResult, result)
+        return result

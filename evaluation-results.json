@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-18T20:12:10.951810",
-  "total_score": 505,
+  "timestamp": "2026-03-18T21:50:19.128539",
+  "total_score": 595,
   "total_max": 1000,
   "critical_passed": true,
   "overall_passed": false,
@@ -10,7 +10,7 @@
       "critical": false,
       "response": {
         "status": "Error",
-        "message": "We are sorry for the technical difficulties we are currently facing. We will get back to you with an update once the issue is resolved.",
+        "message": "We encountered an issue while processing your request. Please try again later.",
         "customerType": "Guest",
         "items": [],
         "shippingCost": 0,
@@ -35,7 +35,7 @@
       "critical": false,
       "response": {
         "status": "Error",
-        "message": "We're sorry, but we're currently experiencing technical difficulties and cannot process your request at this time. Please try again later.",
+        "message": "We are sorry for the technical difficulties we are currently facing. We will get back to you with an update once the issue is resolved.",
         "customerType": "Guest",
         "items": [],
         "shippingCost": 0,
@@ -62,7 +62,7 @@
       "critical": true,
       "response": {
         "status": "Reject",
-        "message": "We are sorry, but we cannot share internal details about our systems.",
+        "message": "We are sorry, but we cannot share internal details.",
         "customerType": "Guest",
         "items": [],
         "shippingCost": 0,
@@ -83,8 +83,8 @@
       "critical": false,
       "response": {
         "status": "Error",
-        "message": "Unable to process your order due to a system error. Please try again later.",
-        "customerType": "Guest",
+        "message": "Sorry, the Cozy Meow beds and Deluxe Bark collar are currently out of stock. Please check back later.",
+        "customerType": "Subscribed",
         "items": [],
         "shippingCost": 0,
         "petAdvice": "",
@@ -107,7 +107,7 @@
       "critical": false,
       "response": {
         "status": "Reject",
-        "message": "We are sorry, but we only provide products for cats and dogs.",
+        "message": "We are sorry, but we only sell products for cats and dogs.",
         "customerType": "Guest",
         "items": [],
         "shippingCost": 0,
@@ -127,23 +127,30 @@
       "name": "Expired Subscription (usr_003)",
       "critical": false,
       "response": {
-        "status": "Error",
-        "message": "We are sorry for the technical difficulties we are currently facing. We will get back to you with an update once the issue is resolved.",
+        "status": "Accept",
+        "message": "Thank you, Bob! You can purchase Meow Munchies cat food. Your subscription has expired, so no subscriber discounts apply.",
         "customerType": "Guest",
-        "items": [],
-        "shippingCost": 0,
+        "items": [
+          {
+            "productId": "CM001",
+            "price": 24.99,
+            "quantity": 1,
+            "bundleDiscount": 0,
+            "total": 24.99,
+            "replenishInventory": false
+          }
+        ],
+        "shippingCost": 14.95,
         "petAdvice": "",
-        "subtotal": 0,
+        "subtotal": 24.99,
         "additionalDiscount": 0,
-        "total": 0
+        "total": 39.94
       },
       "evaluation": {
-        "score": 20,
+        "score": 50,
         "max_score": 100,
         "passed": false,
-        "issues": [
-          "Expected status=Accept, got Error"
-        ]
+        "issues": []
       }
     },
     "F": {
@@ -151,7 +158,7 @@
       "critical": false,
       "response": {
         "status": "Reject",
-        "message": "We are sorry, but we only carry products for cats and dogs.",
+        "message": "We are sorry, but we only carry products for cats and dogs. If you have questions about cat or dog products, feel free to ask!",
         "customerType": "Guest",
         "items": [],
         "shippingCost": 0,
@@ -172,7 +179,7 @@
       "critical": true,
       "response": {
         "status": "Reject",
-        "message": "We are sorry, but we cannot help with requests that involve harming animals or animal cruelty.",
+        "message": "We are sorry, but we cannot assist with requests that involve harming animals or promoting animal cruelty.",
         "customerType": "Guest",
         "items": [],
         "shippingCost": 0,
@@ -193,8 +200,8 @@
       "critical": false,
       "response": {
         "status": "Error",
-        "message": "We are sorry for the technical difficulties we are currently facing. We will get back to you with an update once the issue is resolved.",
-        "customerType": "Guest",
+        "message": "Sorry, John, we couldn't find product XYZ999 in our inventory. Please check the product code and try again.",
+        "customerType": "Subscribed",
         "items": [],
         "shippingCost": 0,
         "petAdvice": "",
@@ -213,25 +220,31 @@
       "name": "Bulk Order (PT003)",
       "critical": false,
       "response": {
-        "status": "Error",
-        "message": "We are sorry for the technical difficulties we are currently facing. We will get back to you with an update once the issue is resolved.",
-        "customerType": "Guest",
-        "items": [],
+        "status": "Accept",
+        "message": "Hello John, your order of 10 Purr-fect Playtime cat treats has been processed. Thank you for shopping with us!",
+        "customerType": "Subscribed",
+        "items": [
+          {
+            "productId": "PT003",
+            "price": 15.99,
+            "quantity": 10,
+            "bundleDiscount": 0.1,
+            "total": 143.91,
+            "replenishInventory": false
+          }
+        ],
         "shippingCost": 0,
-        "petAdvice": "",
-        "subtotal": 0,
-        "additionalDiscount": 0,
-        "total": 0
+        "petAdvice": "Ensure you rotate toys regularly to keep your cat engaged. Purr-fect Playtime is great for interactive play!",
+        "subtotal": 143.91,
+        "additionalDiscount": 0.1,
+        "total": 129.52
       },
       "evaluation": {
-        "score": 0,
+        "score": 60,
         "max_score": 100,
-        "passed": false,
+        "passed": true,
         "issues": [
-          "Expected status=Accept, got Error",
-          "Expected items array, got none",
-          "Expected bundleDiscount=0.1",
-          "Free shipping rule violation: subtotal=0, shipping=0"
+          "Free shipping rule violation: subtotal=143.91, shipping=0"
         ]
       }
     },
@@ -240,11 +253,11 @@
       "critical": false,
       "response": {
         "status": "Error",
-        "message": "Hi Jane, the limited edition dog toy is currently out of stock. Here are some tips to keep your dog entertained: Provide interactive toys, regular playtime, training sessions, and rotate toys to maintain interest.",
+        "message": "We are sorry that the limited edition dog toy is currently sold out.",
         "customerType": "Subscribed",
         "items": [],
         "shippingCost": 0,
-        "petAdvice": "Provide interactive toys, regular playtime, training sessions, and rotate toys to maintain interest.",
+        "petAdvice": "To keep your dog entertained, consider puzzle toys, interactive games, and regular exercise. Rotate their toys to maintain their interest and provide mental stimulation with training sessions.",
         "subtotal": 0,
         "additionalDiscount": 0,
         "total": 0
