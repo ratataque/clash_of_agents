@@ -1,8 +1,0 @@
-{
-  "app": "python app.py",
-  "context": {
-    "account": "",
-    "region": "us-east-1",
-    "model_id": "us.anthropic.claude-sonnet-4-6"
-  }
-}
