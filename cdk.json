@@ -2,7 +2,7 @@
   "app": "python app.py",
   "context": {
     "account": "",
-    "region": "us-west-2",
+    "region": "us-east-1",
     "model_id": "us.anthropic.claude-sonnet-4-6"
   }
 }
