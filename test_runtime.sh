@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Notebook-style AgentCore runtime test
+# Run full evaluation suite against deployed AgentCore runtime
 # Usage:
-#   ./test_runtime.sh [agent_dir] [prompt]
+#   ./test_runtime.sh [agent_dir] [env_file] [additional run_evaluation.py args...]
 # Examples:
 #   ./test_runtime.sh pet_store_agent
-#   ./test_runtime.sh claim_inquiry_agent "Patient asks about Adalimumab coverage"
+#   ./test_runtime.sh pet_store_agent pet_store_agent/.env
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  echo "Usage: ./test_runtime.sh [agent_dir] [prompt]"
+  echo "Usage: ./test_runtime.sh [agent_dir] [env_file] [additional run_evaluation.py args...]"
   exit 0
 fi
 
 agent_dir="${1:-pet_store_agent}"
-prompt="${2:-A new user is asking about the price of Doggy Delights}"
+env_file="${2:-$agent_dir/.env}"
+extra_args=()
+if [[ $# -ge 3 ]]; then
+  extra_args=("${@:3}")
+fi
 
 if [[ ! -d "$agent_dir" ]]; then
   echo "Error: agent directory not found: $agent_dir" >&2
@@ -28,6 +32,11 @@ if [[ ! -f "$yaml_file" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$env_file" ]]; then
+  echo "Error: .env file not found: $env_file" >&2
+  exit 1
+fi
+
 python_bin="python"
 if [[ -x ".venv/bin/python" ]]; then
   python_bin=".venv/bin/python"
@@ -35,80 +44,53 @@ elif command -v python3 >/dev/null 2>&1; then
   python_bin="python3"
 fi
 
-"$python_bin" - "$yaml_file" "$prompt" <<'PY'
-import json
-import sys
-import uuid
-from pathlib import Path
+# Export env vars from .env file
+while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+  line="${raw_line%$'\r'}"
+  [[ -z "$line" ]] && continue
+  [[ "$line" =~ ^[[:space:]]*# ]] && continue
 
-import boto3
+  if [[ "$line" != *=* ]]; then
+    echo "Error: invalid .env line (expected KEY=VALUE): $line" >&2
+    exit 1
+  fi
+
+  key="${line%%=*}"
+  value="${line#*=}"
+  key="${key#"${key%%[![:space:]]*}"}"
+  key="${key%"${key##*[![:space:]]}"}"
+
+  if [[ -z "$key" ]]; then
+    echo "Error: empty key in .env line: $line" >&2
+    exit 1
+  fi
+
+  export "${key}=${value}"
+  echo "  Exported: $key"
+done < "$env_file"
+
+# Default AGENT_RUNTIME_ARN from deployed runtime metadata unless already set
+if [[ -z "${AGENT_RUNTIME_ARN:-}" ]]; then
+  runtime_arn="$("$python_bin" - "$yaml_file" <<'PY'
+import sys
+from pathlib import Path
 import yaml
-from botocore.exceptions import UnknownServiceError
 
 yaml_file = Path(sys.argv[1])
-prompt = sys.argv[2]
-
 data = yaml.safe_load(yaml_file.read_text())
 default_agent = data.get("default_agent")
 if not default_agent or default_agent not in data.get("agents", {}):
     raise SystemExit(f"Error: default agent missing/invalid in {yaml_file}")
-
 agent_cfg = data["agents"][default_agent]
-bedrock_cfg = agent_cfg.get("bedrock_agentcore", {})
-agent_id = bedrock_cfg.get("agent_id")
-agent_arn = bedrock_cfg.get("agent_arn")
-region = agent_cfg.get("aws", {}).get("region", "us-east-1")
-
-if not agent_id or not agent_arn:
-    raise SystemExit("Error: agent_id/agent_arn not found in .bedrock_agentcore.yaml (deploy may not have completed)")
-
-print(f"Agent ID: {agent_id}")
-print(f"Agent ARN: {agent_arn}")
-print(f"Region: {region}")
-
-try:
-    control_client = boto3.client("bedrock-agentcore-control", region_name=region)
-    status = control_client.get_agent_runtime(agentRuntimeId=agent_id).get("status")
-    print(f"Runtime status: {status}")
-    if status != "READY":
-        raise SystemExit(f"Error: runtime is not READY (status={status})")
-except UnknownServiceError:
-    print("Runtime status check skipped: local boto3/botocore lacks 'bedrock-agentcore-control'.")
-    print("Tip: use repo venv (`source .venv/bin/activate`) or upgrade boto3/botocore.")
-
-try:
-    data_client = boto3.client("bedrock-agentcore", region_name=region)
-except UnknownServiceError:
-    raise SystemExit(
-        "Error: local boto3/botocore lacks 'bedrock-agentcore'. "
-        "Activate the repo venv (`source .venv/bin/activate`) or upgrade boto3/botocore."
-    )
-invoke_response = data_client.invoke_agent_runtime(
-    agentRuntimeArn=agent_arn,
-    qualifier="DEFAULT",
-    traceId=str(uuid.uuid4()),
-    contentType="application/json",
-    payload=json.dumps({"prompt": prompt}),
-)
-
-content_type = invoke_response.get("contentType", "")
-print(f"Content-Type: {content_type}")
-print("Response:")
-
-if "text/event-stream" in content_type:
-    output = []
-    for line in invoke_response["response"].iter_lines(chunk_size=1):
-        if not line:
-            continue
-        raw = line.decode("utf-8")
-        if raw.startswith("data: "):
-            raw = raw[6:]
-            output.append(raw)
-    print("\n".join(output))
-else:
-    body = invoke_response.get("response")
-    if hasattr(body, "read"):
-        print(body.read().decode("utf-8"))
-    else:
-        print(body)
+agent_arn = agent_cfg.get("bedrock_agentcore", {}).get("agent_arn")
+if not agent_arn:
+    raise SystemExit("Error: agent_arn not found in .bedrock_agentcore.yaml (deploy may not have completed)")
+print(agent_arn)
 PY
+)"
+  export AGENT_RUNTIME_ARN="$runtime_arn"
+  echo "  Exported: AGENT_RUNTIME_ARN"
+fi
+
+echo "Running evaluation with $env_file ..."
+"$python_bin" run_evaluation.py "${extra_args[@]}"
