@@ -25,6 +25,11 @@ if ! command -v agentcore >/dev/null 2>&1; then
   exit 1
 fi
 
+# Prefer project venv tools when available
+if [[ -d ".venv/bin" ]]; then
+  export PATH="$(pwd)/.venv/bin:$PATH"
+fi
+
 extra_args=()
 if [[ $# -ge 3 ]]; then
   extra_args=("${@:3}")
@@ -37,6 +42,20 @@ for arg in "${extra_args[@]}"; do
     break
   fi
 done
+
+if [[ "$show_help_only" == "false" ]] && ! command -v uv >/dev/null 2>&1; then
+  if [[ -x ".venv/bin/python" ]]; then
+    echo "uv not found in PATH. Installing uv into project .venv ..."
+    .venv/bin/python -m pip install uv >/dev/null
+  fi
+fi
+
+if [[ "$show_help_only" == "false" ]] && ! command -v uv >/dev/null 2>&1; then
+  echo "Error: uv is required for direct_code_deploy deployment but was not found." >&2
+  echo "Install uv: https://docs.astral.sh/uv/getting-started/installation/" >&2
+  echo "Or use container deployment instead: agentcore configure --help" >&2
+  exit 1
+fi
 
 # Export env vars from .env file
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
