@@ -1,3 +1,6 @@
 pet_store_agent/.env
+pet_store_agent/.env.local
+pet_store_agent/.env.*.local
+!pet_store_agent/.env.example
+pet_store_agent/.bedrock_agentcore.yaml
 pet_store_agent/.bedrock_agentcore/
-

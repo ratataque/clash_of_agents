@@ -250,9 +250,28 @@ def create_agent():
             "Required environment variables SYSTEM_FUNCTION_1_NAME and SYSTEM_FUNCTION_2_NAME must be set"
         )
 
-    model = BedrockModel(
-        model_id="us.amazon.nova-pro-v1:0", max_tokens=4096, streaming=False
+    # Model configuration from environment variables (with sensible defaults)
+    model_id = os.environ.get(
+        "BEDROCK_MODEL_ID", os.environ.get("MODEL_ID", "us.amazon.nova-pro-v1:0")
     )
+
+    max_tokens_raw = os.environ.get(
+        "BEDROCK_MAX_TOKENS", os.environ.get("MAX_TOKENS", "4096")
+    )
+    try:
+        max_tokens = int(max_tokens_raw)
+    except ValueError:
+        logger.warning(
+            f"Invalid max token value '{max_tokens_raw}'. Falling back to 4096."
+        )
+        max_tokens = 4096
+
+    streaming_str = os.environ.get(
+        "BEDROCK_STREAMING", os.environ.get("STREAMING", "false")
+    ).lower()
+    streaming = streaming_str in ("true", "1", "yes")
+
+    model = BedrockModel(model_id=model_id, max_tokens=max_tokens, streaming=streaming)
 
     return Agent(
         model=model,

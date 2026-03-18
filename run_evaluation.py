@@ -8,10 +8,14 @@ import boto3
 import json
 import uuid
 import sys
+import os
 from datetime import datetime
 
 # Agent Runtime ARN
-AGENT_RUNTIME_ARN = "arn:aws:bedrock-agentcore:us-east-1:799631972281:runtime/StrandsAgentCoreRuntime-rAC5z64Rfo"
+AGENT_RUNTIME_ARN = os.environ.get(
+    "AGENT_RUNTIME_ARN",
+    "arn:aws:bedrock-agentcore:us-east-1:799631972281:runtime/StrandsAgentCoreRuntime-rAC5z64Rfo",
+)
 
 # Evaluation Prompts
 EVALUATION_PROMPTS = {
