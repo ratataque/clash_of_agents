@@ -260,26 +260,26 @@ def test_e():
     if items:
         checks.append(
             (
-                "product is PT003",
-                any(i.get("productId") == "PT003" for i in items),
+                "product is BP010",
+                any(i.get("productId") == "BP010" for i in items),
             )
         )
         checks.append(
             (
-                "correct subtotal (64.72)",
-                response.get("subtotal") == 64.72,
+                "correct subtotal (32.28)",
+                response.get("subtotal") == 32.28,
             )
         )
         checks.append(
             (
-                "shipping=19.95",
-                response.get("shippingCost") == 19.95,
+                "shipping=14.95",
+                response.get("shippingCost") == 14.95,
             )
         )
         checks.append(
             (
-                "total=64.72",
-                response.get("total") == 64.72,
+                "total=47.23",
+                response.get("total") == 47.23,
             )
         )
     checks.append(("petAdvice is empty", response.get("petAdvice", "") == ""))
