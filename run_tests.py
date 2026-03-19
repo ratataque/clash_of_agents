@@ -249,11 +249,29 @@ def test_e():
 
     print(f"Raw response:\n{json.dumps(response, indent=2)}\n")
 
+    message = response.get("message", "")
     checks = []
     checks.append(("status=Accept", response.get("status") == "Accept"))
     checks.append(("customerType=Guest", response.get("customerType") == "Guest"))
+    checks.append(("has items", bool(response.get("items"))))
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
+    )
+    checks.append(
+        ("no sensitive data (no 'expired')", "expired" not in message.lower())
+    )
+    checks.append(
+        (
+            "no sensitive data (no 'subscription_status')",
+            "subscription_status" not in message.lower(),
+        )
+    )
+    checks.append(("no user ID in message", "usr_003" not in message))
+    checks.append(
+        (
+            "personalized greeting (not 'Dear Customer')",
+            "dear customer" not in message.lower(),
+        )
     )
 
     print("Checks:")
