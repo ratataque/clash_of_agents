@@ -6,6 +6,7 @@ import json
 import uuid
 import sys
 import os
+import time
 from datetime import datetime
 
 AGENT_RUNTIME_ARN = os.environ.get(
@@ -492,18 +493,30 @@ def main():
             tests_to_run.append(upper_arg)
 
     results = {}
+    test_timings = {}
+    total_start = time.time()
     for test_name in tests_to_run:
         test_func = TESTS[test_name]
+        test_start = time.time()
         test_letter, passed = test_func()
+        test_end = time.time()
+        test_elapsed = test_end - test_start
         results[test_letter] = passed
+        test_timings[test_letter] = test_elapsed
+        status = "PASS" if passed else "FAIL"
+        print(f"Test {test_letter}: {status} in {test_elapsed:.1f}s")
+    total_end = time.time()
+    total_elapsed = total_end - total_start
 
     print("=" * 50)
     for test_name in ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P"]:
         if test_name in results:
             result = "PASS" if results[test_name] else "FAIL"
-            print(f"Test {test_name}: {result}")
+            elapsed = test_timings[test_name]
+            print(f"Test {test_name}: {result} in {elapsed:.1f}s")
     overall = "PASS" if all(results.values()) else "FAIL"
     print(f"Overall: {overall}")
+    print(f"Total: {total_elapsed:.1f}s")
     print("=" * 50)
 
     return 0 if all(results.values()) else 1
