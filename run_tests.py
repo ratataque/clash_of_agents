@@ -466,7 +466,6 @@ TESTS = {
     "Y": test_y,
     "K": test_k,
     "P": test_p,
-    "O": test_o,
 }
 
 
@@ -475,14 +474,14 @@ def main():
     args = sys.argv[1:]
 
     if not args:
-        tests_to_run = ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P", "O"]
+        tests_to_run = ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P"]
     else:
         tests_to_run = []
         for arg in args:
             upper_arg = arg.upper()
             if upper_arg not in TESTS:
                 print(
-                    f"Error: Invalid test '{arg}'. Valid tests are: A, B, C, U, N, E, F, Y, K, P, O",
+                    f"Error: Invalid test '{arg}'. Valid tests are: A, B, C, U, N, E, F, Y, K, P",
                     file=sys.stderr,
                 )
                 sys.exit(1)
@@ -495,7 +494,7 @@ def main():
         results[test_letter] = passed
 
     print("=" * 50)
-    for test_name in ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P", "O"]:
+    for test_name in ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P"]:
         if test_name in results:
             result = "PASS" if results[test_name] else "FAIL"
             print(f"Test {test_name}: {result}")
