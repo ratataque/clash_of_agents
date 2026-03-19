@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests: Test A (Basic Pricing DD006, guest), Test B (Bundle Deal with pet advice), Test C (Prompt Injection), Test U (Unethical Request), Test N (Unsupported Product — hamster), Test E (Expired Subscription usr_003), Test F (Non-cat/dog — bird seed), Test Y (Missing Inventory XYZ999), Test K (Bulk Order PT003 qty=10), and Test P (Unavailable + Advice usr_002)"""
+"""Regression tests: A/B/C/U/N/E/F/Y/K/P plus O (inventory bulk-capacity check via Lambda)."""
 
 import boto3
 import json
@@ -11,6 +11,10 @@ from datetime import datetime
 AGENT_RUNTIME_ARN = os.environ.get(
     "AGENT_RUNTIME_ARN",
     "arn:aws:bedrock-agentcore:us-east-1:799631972281:runtime/PetStoreAgentRuntime-dQAchb62bb",
+)
+INVENTORY_FUNCTION_NAME = os.environ.get(
+    "SYSTEM_FUNCTION_1_NAME",
+    "team-PetStoreInventoryManagementFunction-cV2LQtPUDLbh",
 )
 
 
@@ -61,6 +65,22 @@ def invoke_agent(prompt):
 
     except Exception as e:
         return {"error": str(e), "status": "Error"}
+
+
+def invoke_inventory_lambda(product_code: str):
+    client = boto3.client("lambda")
+    payload = {
+        "function": "getInventory",
+        "parameters": [{"name": "product_code", "value": product_code}],
+    }
+    response = client.invoke(
+        FunctionName=INVENTORY_FUNCTION_NAME,
+        InvocationType="RequestResponse",
+        Payload=json.dumps(payload),
+    )
+    outer = json.loads(response["Payload"].read())
+    body_text = outer["response"]["functionResponse"]["responseBody"]["TEXT"]["body"]
+    return json.loads(body_text)
 
 
 def test_a():
@@ -239,9 +259,13 @@ def test_n():
 
 
 def test_e():
-    """Test E: Expired Subscription (usr_003)"""
-    prompt = "CustomerId: usr_003\nCustomerRequest: I want to buy one Paw-ty Mix. Can I get my subscriber discount?"
-    print(f"=== Test E: Expired Subscription (usr_003) ===")
+    """Test E: Expired Subscription + Out-of-Stock handling (usr_003)"""
+    prompt = (
+        "CustomerId: usr_003\n"
+        "CustomerRequest: I want to buy 10000 units of Paw-ty Mix. "
+        "Can I get my subscriber discount?"
+    )
+    print(f"=== Test E: Expired Subscription + Out-of-Stock (usr_003) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
 
@@ -252,35 +276,15 @@ def test_e():
     message = response.get("message", "")
     items = response.get("items", [])
     checks = []
-    checks.append(("status=Accept", response.get("status") == "Accept"))
+    checks.append(("status=Reject", response.get("status") == "Reject"))
     checks.append(("customerType=Guest", response.get("customerType") == "Guest"))
-    checks.append(("has items", bool(items)))
-    # PM015 Paw-ty Mix $27.99 qty=1 → subtotal = 27.99 + 14.95 = 42.94
-    if items:
-        checks.append(
-            (
-                "product is PM015",
-                any(i.get("productId") == "PM015" for i in items),
-            )
-        )
-        checks.append(
-            (
-                "correct subtotal (42.94)",
-                response.get("subtotal") == 42.94,
-            )
-        )
-        checks.append(
-            (
-                "shipping=14.95",
-                response.get("shippingCost") == 14.95,
-            )
-        )
-        checks.append(
-            (
-                "total=42.94",
-                response.get("total") == 42.94,
-            )
-        )
+    checks.append(("no items on reject", not bool(items)))
+    checks.append(("message starts with 'We are sorry'", message.strip().lower().startswith("we are sorry")))
+    checks.append(("guidance phrasing present", any(
+        token in message.lower()
+        for token in ["alternative", "another", "instead", "help you find", "other option", "recommend"]
+    )))
+    checks.append(("no internal product code PM015 in message", "pm015" not in message.lower()))
     checks.append(("petAdvice is empty", response.get("petAdvice", "") == ""))
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
@@ -462,6 +466,7 @@ TESTS = {
     "Y": test_y,
     "K": test_k,
     "P": test_p,
+    "O": test_o,
 }
 
 
@@ -470,14 +475,14 @@ def main():
     args = sys.argv[1:]
 
     if not args:
-        tests_to_run = ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P"]
+        tests_to_run = ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P", "O"]
     else:
         tests_to_run = []
         for arg in args:
             upper_arg = arg.upper()
             if upper_arg not in TESTS:
                 print(
-                    f"Error: Invalid test '{arg}'. Valid tests are: A, B, C, U, N, E, F, Y, K, P",
+                    f"Error: Invalid test '{arg}'. Valid tests are: A, B, C, U, N, E, F, Y, K, P, O",
                     file=sys.stderr,
                 )
                 sys.exit(1)
@@ -490,7 +495,7 @@ def main():
         results[test_letter] = passed
 
     print("=" * 50)
-    for test_name in ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P"]:
+    for test_name in ["A", "B", "C", "U", "N", "E", "F", "Y", "K", "P", "O"]:
         if test_name in results:
             result = "PASS" if results[test_name] else "FAIL"
             print(f"Test {test_name}: {result}")

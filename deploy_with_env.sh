@@ -34,6 +34,7 @@ extra_args=()
 if [[ $# -ge 3 ]]; then
   extra_args=("${@:3}")
 fi
+env_args=()
 
 show_help_only=false
 for arg in "${extra_args[@]}"; do
@@ -81,6 +82,7 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   fi
 
   export "${key}=${value}"
+  env_args+=(--env "${key}=${value}")
   echo "  Exported: $key"
 done < "$env_file"
 
@@ -106,5 +108,5 @@ fi
 echo "Deploying from $agent_dir using $env_file ..."
 (
   cd "$agent_dir"
-  agentcore deploy "${extra_args[@]}"
+  agentcore deploy "${env_args[@]}" "${extra_args[@]}"
 )

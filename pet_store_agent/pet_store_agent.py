@@ -15,6 +15,45 @@ logger = logging.getLogger(__name__)
 
 logging.getLogger().setLevel(logging.INFO)
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid integer for %s=%r, using default=%d", name, raw, default)
+        return default
+
+
+def _resolve_model_id(raw_model_id: str) -> str:
+    """
+    Resolve model ID to a Bedrock-compatible identifier.
+    Anthropic models in this environment require inference profile IDs (for example, `us.anthropic...`).
+    """
+    model_id = (raw_model_id or "").strip()
+    if not model_id:
+        return "us.amazon.nova-pro-v1:0"
+
+    # Already an ARN or profile-scoped ID
+    if model_id.startswith(("arn:", "us.", "eu.", "apac.", "global.")):
+        return model_id
+
+    # Common fix for Anthropic direct model IDs in us-east-1
+    if model_id.startswith("anthropic."):
+        return f"us.{model_id}"
+
+    return model_id
+
+
 system_prompt = """
 You are an online pet store assistant for staff. Analyze customer requests and respond using tools.
 
@@ -158,13 +197,24 @@ def create_agent():
             "Required environment variables SYSTEM_FUNCTION_1_NAME and SYSTEM_FUNCTION_2_NAME must be set"
         )
 
-    guardrail_id = os.environ.get("GUARDRAIL_ID", "i8ww2sdhqkcu")
-    guardrail_version = os.environ.get("GUARDRAIL_VERSION", "1")
+    model_id = _resolve_model_id(os.environ.get("BEDROCK_MODEL_ID", "us.amazon.nova-pro-v1:0"))
+    max_tokens = _env_int("BEDROCK_MAX_TOKENS", 4096)
+    streaming = _env_bool("BEDROCK_STREAMING", False)
+    logger.info("Using Bedrock model ID: %s", model_id)
+
+    guardrail_id = (
+        os.environ.get("BEDROCK_GUARDRAIL_ID")
+        or os.environ.get("GUARDRAIL_ID")
+        or "i8ww2sdhqkcu"
+    )
+    guardrail_version = os.environ.get("BEDROCK_GUARDRAIL_VERSION") or os.environ.get(
+        "GUARDRAIL_VERSION", "1"
+    )
 
     model = BedrockModel(
-        model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
-        max_tokens=4096,
-        streaming=False,
+        model_id=model_id,
+        max_tokens=max_tokens,
+        streaming=streaming,
         guardrail_id=guardrail_id,
         guardrail_version=guardrail_version,
     )
@@ -194,9 +244,15 @@ def process_request(prompt):
         response = agent(prompt)
         return str(response)
     except Exception as e:
-        error_message = str(e)
-        logger.error(f"Error processing request: {error_message}")
+        logger.exception("Error processing request: %s", str(e))
         return {
             "status": "Error",
             "message": "We are sorry for the technical difficulties...",
+            "customerType": "Guest",
+            "items": [],
+            "shippingCost": 0.0,
+            "petAdvice": "",
+            "subtotal": 0.0,
+            "additionalDiscount": 0.0,
+            "total": 0.0,
         }
