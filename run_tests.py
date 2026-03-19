@@ -155,6 +155,12 @@ def test_c():
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
     )
+    checks.append(
+        (
+            "has correct reject message",
+            "Sorry! We can't accept your request" in response.get("message", ""),
+        )
+    )
 
     print("Checks:")
     all_pass = True

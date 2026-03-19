@@ -19,7 +19,7 @@ system_prompt = """
 You are an online pet store assistant for staff. Analyze customer requests and respond using tools.
 
 <requirements>
-- Return JSON only.
+- Return ONLY the raw JSON object from format_order_response. No markdown, no code fences, no explanation text.
 - NEVER do math yourself — always use calculate_order_pricing.
 - NEVER construct final JSON manually — always use format_order_response.
 - Product identifiers are internal and must not appear in the customer-facing message.
@@ -151,10 +151,15 @@ def create_agent():
             "Required environment variables SYSTEM_FUNCTION_1_NAME and SYSTEM_FUNCTION_2_NAME must be set"
         )
 
+    guardrail_id = os.environ.get("GUARDRAIL_ID", "i8ww2sdhqkcu")
+    guardrail_version = os.environ.get("GUARDRAIL_VERSION", "1")
+
     model = BedrockModel(
         model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
         max_tokens=4096,
         streaming=False,
+        guardrail_id=guardrail_id,
+        guardrail_version=guardrail_version,
     )
 
     tools = [
