@@ -8,6 +8,7 @@ import sys
 import os
 import time
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 AGENT_RUNTIME_ARN = os.environ.get(
     "AGENT_RUNTIME_ARN",
@@ -474,6 +475,14 @@ TESTS = {
 }
 
 
+def run_single_test(test_name, test_func):
+    """Run a single test with timing instrumentation."""
+    test_start = time.time()
+    test_letter, passed = test_func()
+    test_elapsed = time.time() - test_start
+    return test_letter, passed, test_elapsed
+
+
 def main():
     """Main entry point: run tests based on CLI arguments"""
     args = sys.argv[1:]
@@ -495,16 +504,17 @@ def main():
     results = {}
     test_timings = {}
     total_start = time.time()
-    for test_name in tests_to_run:
-        test_func = TESTS[test_name]
-        test_start = time.time()
-        test_letter, passed = test_func()
-        test_end = time.time()
-        test_elapsed = test_end - test_start
-        results[test_letter] = passed
-        test_timings[test_letter] = test_elapsed
-        status = "PASS" if passed else "FAIL"
-        print(f"Test {test_letter}: {status} in {test_elapsed:.1f}s")
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {}
+        for test_name in tests_to_run:
+            test_func = TESTS[test_name]
+            futures[executor.submit(run_single_test, test_name, test_func)] = test_name
+        for future in as_completed(futures):
+            test_letter, passed, elapsed = future.result()
+            results[test_letter] = passed
+            test_timings[test_letter] = elapsed
+            status = "PASS" if passed else "FAIL"
+            print(f"Test {test_letter}: {status} in {elapsed:.1f}s")
     total_end = time.time()
     total_elapsed = total_end - total_start
 
