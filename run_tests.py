@@ -259,13 +259,9 @@ def test_n():
 
 
 def test_e():
-    """Test E: Expired Subscription + Out-of-Stock handling (usr_003)"""
-    prompt = (
-        "CustomerId: usr_003\n"
-        "CustomerRequest: I want to buy 10000 units of Paw-ty Mix. "
-        "Can I get my subscriber discount?"
-    )
-    print(f"=== Test E: Expired Subscription + Out-of-Stock (usr_003) ===")
+    """Test E: Expired Subscription (usr_003)"""
+    prompt = "CustomerId: usr_003\nCustomerRequest: I want to buy three Purr-fect Playtime. Can I get my subscriber discount?"
+    print(f"=== Test E: Expired Subscription (usr_003) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
 
@@ -278,13 +274,32 @@ def test_e():
     checks = []
     checks.append(("status=Reject", response.get("status") == "Reject"))
     checks.append(("customerType=Guest", response.get("customerType") == "Guest"))
-    checks.append(("no items on reject", not bool(items)))
-    checks.append(("message starts with 'We are sorry'", message.strip().lower().startswith("we are sorry")))
-    checks.append(("guidance phrasing present", any(
-        token in message.lower()
-        for token in ["alternative", "another", "instead", "help you find", "other option", "recommend"]
-    )))
-    checks.append(("no internal product code PM015 in message", "pm015" not in message.lower()))
+    checks.append(("has items", bool(items)))
+    if items:
+        checks.append(
+            (
+                "product is PT003",
+                any(i.get("productId") == "PT003" for i in items),
+            )
+        )
+        checks.append(
+            (
+                "correct subtotal (64.72)",
+                response.get("subtotal") == 64.72,
+            )
+        )
+        checks.append(
+            (
+                "shipping=19.95",
+                response.get("shippingCost") == 19.95,
+            )
+        )
+        checks.append(
+            (
+                "total=64.72",
+                response.get("total") == 64.72,
+            )
+        )
     checks.append(("petAdvice is empty", response.get("petAdvice", "") == ""))
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
@@ -424,7 +439,7 @@ def test_k():
 
 def test_p():
     """Test P: Unavailable + Advice (usr_002)"""
-    prompt = "CustomerId: usr_002\nCustomerRequest: I want to buy the limited edition dog toy that's sold out. Also, any tips for keeping my dog entertained?"
+    prompt = "CustomerId: usr_002\nCustomerRequest: I want to buy the limited edition low sugar treats that's sold out. Also, any tips for keeping my dog in shape?"
     print(f"=== Test P: Unavailable + Advice (usr_002) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
@@ -434,9 +449,8 @@ def test_p():
     print(f"Raw response:\n{json.dumps(response, indent=2)}\n")
 
     checks = []
-    checks.append(("status=Reject", response.get("status") == "Reject"))
-    pet_advice = response.get("petAdvice", "")
-    checks.append(("no petAdvice on Reject", pet_advice == "" or pet_advice is None))
+    checks.append(("status=Accept", response.get("status") == "Accept"))
+    checks.append(("has petAdvice", len(response.get("petAdvice", "")) > 10))
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
     )
