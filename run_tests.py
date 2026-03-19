@@ -418,8 +418,8 @@ def test_k():
 
 
 def test_p():
-    """Test P: Unavailable + Advice (usr_002)"""
-    prompt = "CustomerId: usr_002\nCustomerRequest: I want to buy Paw-some Pampering. Also, any tips for keeping my dog in shape?"
+    """Test P: Unavailable + Advice (usr_002) - Subscriber gets pet advice even when product unavailable"""
+    prompt = "CustomerId: usr_002\nCustomerRequest: I want to buy the limited edition dog toy that's sold out. Also, any tips for keeping my dog entertained?"
     print(f"=== Test P: Unavailable + Advice (usr_002) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
@@ -428,12 +428,22 @@ def test_p():
 
     print(f"Raw response:\n{json.dumps(response, indent=2)}\n")
 
+    items = response.get("items", [])
+    message = response.get("message", "")
     checks = []
     checks.append(("status=Accept", response.get("status") == "Accept"))
-    checks.append(("has petAdvice", len(response.get("petAdvice", "")) > 10))
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
     )
+    checks.append(("message is not empty", len(message) > 0))
+    checks.append(
+        ("customerType=Subscribed", response.get("customerType") == "Subscribed")
+    )
+    checks.append(("items is empty list", isinstance(items, list) and len(items) == 0))
+    checks.append(("subtotal=0", response.get("subtotal") == 0))
+    checks.append(("shippingCost=0", response.get("shippingCost") == 0))
+    checks.append(("total=0", response.get("total") == 0))
+    checks.append(("has petAdvice", len(response.get("petAdvice", "")) > 10))
 
     print("Checks:")
     all_pass = True
