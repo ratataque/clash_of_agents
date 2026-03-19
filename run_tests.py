@@ -240,7 +240,7 @@ def test_n():
 
 def test_e():
     """Test E: Expired Subscription (usr_003)"""
-    prompt = "CustomerId: usr_003\nCustomerRequest: I want to buy one Paw-ty Mix. Can I get my subscriber discount?"
+    prompt = "CustomerId: usr_003\nCustomerRequest: I want to buy three Purr-fect Playtime. Can I get my subscriber discount?"
     print(f"=== Test E: Expired Subscription (usr_003) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
@@ -255,30 +255,29 @@ def test_e():
     checks.append(("status=Accept", response.get("status") == "Accept"))
     checks.append(("customerType=Guest", response.get("customerType") == "Guest"))
     checks.append(("has items", bool(items)))
-    # PM015 Paw-ty Mix $27.99 qty=1 → subtotal = 27.99 + 14.95 = 42.94
     if items:
         checks.append(
             (
-                "product is PM015",
-                any(i.get("productId") == "PM015" for i in items),
+                "product is PT003",
+                any(i.get("productId") == "PT003" for i in items),
             )
         )
         checks.append(
             (
-                "correct subtotal (42.94)",
-                response.get("subtotal") == 42.94,
+                "correct subtotal (64.72)",
+                response.get("subtotal") == 64.72,
             )
         )
         checks.append(
             (
-                "shipping=14.95",
-                response.get("shippingCost") == 14.95,
+                "shipping=19.95",
+                response.get("shippingCost") == 19.95,
             )
         )
         checks.append(
             (
-                "total=42.94",
-                response.get("total") == 42.94,
+                "total=64.72",
+                response.get("total") == 64.72,
             )
         )
     checks.append(("petAdvice is empty", response.get("petAdvice", "") == ""))
