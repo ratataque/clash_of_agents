@@ -65,9 +65,9 @@ def calculate_order_pricing(items: str) -> dict:
 
         additional_discount = 0.15 if total_item_sum > 300 else 0
 
-        subtotal = round(total_item_sum + shipping_cost, 2)
+        subtotal = round(total_item_sum, 2)
         discount_amount = round(total_item_sum * additional_discount, 2)
-        total = round(subtotal - discount_amount, 2)
+        total = round(subtotal - discount_amount + shipping_cost, 2)
 
         result_data = {
             "items": items_result,
