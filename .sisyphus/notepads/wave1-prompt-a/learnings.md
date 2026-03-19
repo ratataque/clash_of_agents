@@ -45,3 +45,10 @@ This tool is self-contained and doesn't depend on other modules. Ready for Task 
 2. Prompt reliability improves when execution is split into explicit branch flows: Guest (no identity) vs Known User (CustomerId/email lookup first), with strict conditions for `customerType="Subscribed"`.
 3. Pet advice should be constrained in prompt logic to subscribed users with a pet-related ask; otherwise enforce `petAdvice=""` to preserve legacy guest behavior.
 4. Preserving Test A while enabling Test B is primarily a prompt+tool wiring change; no pricing or formatter code changes are required for the current scoring criteria.
+
+## Task: Test P Accept override for unavailable+advice (2026-03-19)
+
+### Key Insights
+1. The unavailable-product rule needs an explicit higher-priority override in both `<requirements>` and `<flow_b>`; otherwise the model continues to default to the generic unavailable→Reject path.
+2. Prompt wording must be strongly imperative for this edge case (`MUST be status="Accept"`, `NEVER use status="Reject"`, `immediately return`) to reduce policy collision with broader rejection rules.
+3. Keeping the override before the generic unavailable reject instruction is necessary to satisfy precedence for the subscribed+explicit-advice scenario.

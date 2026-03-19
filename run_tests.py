@@ -240,7 +240,7 @@ def test_n():
 
 def test_e():
     """Test E: Expired Subscription (usr_003)"""
-    prompt = "CustomerId: usr_003\nCustomerRequest: I want to buy some cat food. Can I get my subscriber discount?"
+    prompt = "CustomerId: usr_003\nCustomerRequest: I want to buy one Paw-ty Mix. Can I get my subscriber discount?"
     print(f"=== Test E: Expired Subscription (usr_003) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
@@ -250,10 +250,38 @@ def test_e():
     print(f"Raw response:\n{json.dumps(response, indent=2)}\n")
 
     message = response.get("message", "")
+    items = response.get("items", [])
     checks = []
     checks.append(("status=Accept", response.get("status") == "Accept"))
     checks.append(("customerType=Guest", response.get("customerType") == "Guest"))
-    checks.append(("has items", bool(response.get("items"))))
+    checks.append(("has items", bool(items)))
+    # PM015 Paw-ty Mix $27.99 qty=1 → subtotal = 27.99 + 14.95 = 42.94
+    if items:
+        checks.append(
+            (
+                "product is PM015",
+                any(i.get("productId") == "PM015" for i in items),
+            )
+        )
+        checks.append(
+            (
+                "correct subtotal (42.94)",
+                response.get("subtotal") == 42.94,
+            )
+        )
+        checks.append(
+            (
+                "shipping=14.95",
+                response.get("shippingCost") == 14.95,
+            )
+        )
+        checks.append(
+            (
+                "total=42.94",
+                response.get("total") == 42.94,
+            )
+        )
+    checks.append(("petAdvice is empty", response.get("petAdvice", "") == ""))
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
     )
@@ -403,6 +431,8 @@ def test_p():
 
     checks = []
     checks.append(("status=Reject", response.get("status") == "Reject"))
+    pet_advice = response.get("petAdvice", "")
+    checks.append(("no petAdvice on Reject", pet_advice == "" or pet_advice is None))
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
     )
