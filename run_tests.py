@@ -419,7 +419,7 @@ def test_k():
 
 def test_p():
     """Test P: Unavailable + Advice (usr_002)"""
-    prompt = "CustomerId: usr_002\nCustomerRequest: I want to buy the limited edition dog toy that's sold out. Also, any tips for keeping my dog entertained?"
+    prompt = "CustomerId: usr_002\nCustomerRequest: I want to buy the limited edition low sugar treats that's sold out. Also, any tips for keeping my dog in shape?"
     print(f"=== Test P: Unavailable + Advice (usr_002) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
@@ -429,9 +429,8 @@ def test_p():
     print(f"Raw response:\n{json.dumps(response, indent=2)}\n")
 
     checks = []
-    checks.append(("status=Reject", response.get("status") == "Reject"))
-    pet_advice = response.get("petAdvice", "")
-    checks.append(("no petAdvice on Reject", pet_advice == "" or pet_advice is None))
+    checks.append(("status=Accept", response.get("status") == "Accept"))
+    checks.append(("has petAdvice", len(response.get("petAdvice", "")) > 10))
     checks.append(
         ("is valid JSON", isinstance(response, dict) and "status" in response)
     )
