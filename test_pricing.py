@@ -8,8 +8,8 @@ Shipping:
   - items_total < $75, total_qty <= 2 → $14.95
   - items_total < $75, total_qty >= 3 → $19.95
 Discount: 15% off items_total when items_total > $300
-Subtotal: items_total + shipping
-Total: subtotal - (items_total * 0.15) if discount applies, else subtotal
+Subtotal: items_total (without shipping)
+Total: subtotal - discount + shipping
 """
 
 import json
@@ -78,14 +78,14 @@ TESTS = {}
 
 
 def test_single_item_qty1():
-    """DD006 $54.99 × 1 — no bundle, shipping $14.95"""
+    """DD006 $54.99 × 1 — no bundle, shipping $14.95, subtotal=items only"""
     return run_test(
         "Single item qty=1 (DD006)",
         [make_item("DD006", 54.99, 1)],
         {
             "items": [{"bundleDiscount": 0, "total": 54.99}],
             "shippingCost": 14.95,
-            "subtotal": 69.94,
+            "subtotal": 54.99,
             "additionalDiscount": 0,
             "total": 69.94,
         },
@@ -96,7 +96,7 @@ TESTS["single_qty1"] = test_single_item_qty1
 
 
 def test_single_item_qty2():
-    """BP010 $16.99 × 2 — bundle 10%, shipping $14.95 (qty=2, total=32.28 < 75)"""
+    """BP010 $16.99 × 2 — bundle 10%, shipping $14.95 (qty=2, items_total=32.28 < 75)"""
     # first at full: 16.99, second at 90%: 16.99 * 0.90 = 15.291
     # item_total = 16.99 + 15.291 = 32.281 → round = 32.28
     return run_test(
@@ -105,7 +105,7 @@ def test_single_item_qty2():
         {
             "items": [{"bundleDiscount": 0.10, "total": 32.28}],
             "shippingCost": 14.95,
-            "subtotal": 47.23,
+            "subtotal": 32.28,
             "additionalDiscount": 0,
             "total": 47.23,
         },
@@ -116,21 +116,18 @@ TESTS["single_qty2"] = test_single_item_qty2
 
 
 def test_single_item_qty3_under75():
-    """PM015 $27.99 × 3 — bundle 10%, qty=3, total < 75 → shipping $19.95"""
-    # first: 27.99, additional 2 at 90%: 27.99 * 0.90 * 2 = 50.382
-    # item_total = 27.99 + 50.382 = 78.372 → round = 78.37
-    # 78.37 >= 75 → FREE shipping actually!
-    # Let's use a cheaper item: FF008 $9.99 × 3
+    """FF008 $9.99 × 3 — bundle 10%, qty=3, items_total < 75 → shipping $19.95"""
     # first: 9.99, additional 2 at 90%: 9.99 * 0.90 * 2 = 17.982
     # item_total = 9.99 + 17.982 = 27.972 → round = 27.97
     # 27.97 < 75, qty=3 >= 3 → shipping = 19.95
+    # subtotal = 27.97 (items only), total = 27.97 + 19.95 = 47.92
     return run_test(
         "Single item qty=3 under $75 (FF008 $9.99)",
         [make_item("FF008", 9.99, 3)],
         {
             "items": [{"bundleDiscount": 0.10, "total": 27.97}],
             "shippingCost": 19.95,
-            "subtotal": 47.92,
+            "subtotal": 27.97,
             "additionalDiscount": 0,
             "total": 47.92,
         },
@@ -167,7 +164,7 @@ def test_shipping_just_below_75():
         {
             "items": [{"bundleDiscount": 0, "total": 74.99}],
             "shippingCost": 14.95,
-            "subtotal": 89.94,
+            "subtotal": 74.99,
             "additionalDiscount": 0,
             "total": 89.94,
         },
@@ -178,8 +175,9 @@ TESTS["shipping_below_75"] = test_shipping_just_below_75
 
 
 def test_shipping_qty2_under75():
-    """2 different items, total qty=2, items_total < 75 → $14.95"""
+    """2 different items, total qty=2, items_total=21.98 < 75 → $14.95"""
     # FF008 $9.99 × 1 + CC009 $11.99 × 1 = 21.98
+    # subtotal = 21.98 (items only), total = 21.98 + 14.95 = 36.93
     return run_test(
         "2 items qty=1 each, under $75 → $14.95",
         [make_item("FF008", 9.99, 1), make_item("CC009", 11.99, 1)],
@@ -189,7 +187,7 @@ def test_shipping_qty2_under75():
                 {"bundleDiscount": 0, "total": 11.99},
             ],
             "shippingCost": 14.95,
-            "subtotal": 36.93,
+            "subtotal": 21.98,
             "additionalDiscount": 0,
             "total": 36.93,
         },
@@ -200,11 +198,12 @@ TESTS["shipping_2items_under75"] = test_shipping_qty2_under75
 
 
 def test_shipping_qty3_mixed_under75():
-    """Mixed items, total qty=3, items_total < 75 → $19.95"""
+    """Mixed items, total qty=3, items_total=30.97 < 75 → $19.95"""
     # FF008 $9.99 × 2 + CC009 $11.99 × 1
     # FF008: 9.99 + 9.99*0.90 = 9.99 + 8.991 = 18.981 → 18.98
     # CC009: 11.99
-    # total_items = 18.98 + 11.99 = 30.97, qty = 3
+    # items_total = 18.98 + 11.99 = 30.97, qty = 3
+    # subtotal = 30.97 (items only), total = 30.97 + 19.95 = 50.92
     return run_test(
         "Mixed items, total qty=3, under $75 → $19.95",
         [make_item("FF008", 9.99, 2), make_item("CC009", 11.99, 1)],
@@ -214,7 +213,7 @@ def test_shipping_qty3_mixed_under75():
                 {"bundleDiscount": 0, "total": 11.99},
             ],
             "shippingCost": 19.95,
-            "subtotal": 50.92,
+            "subtotal": 30.97,
             "additionalDiscount": 0,
             "total": 50.92,
         },
@@ -311,13 +310,14 @@ TESTS["pt003_qty10"] = test_bulk_pt003_qty10
 
 def test_pm015_qty1():
     """PM015 $27.99 × 1 — matches test E scenario"""
+    # subtotal = 27.99 (items only), total = 27.99 + 14.95 = 42.94
     return run_test(
         "PM015 × 1 (test E scenario)",
         [make_item("PM015", 27.99, 1)],
         {
             "items": [{"bundleDiscount": 0, "total": 27.99}],
             "shippingCost": 14.95,
-            "subtotal": 42.94,
+            "subtotal": 27.99,
             "additionalDiscount": 0,
             "total": 42.94,
         },
@@ -333,9 +333,7 @@ def test_multi_item_order():
     # DB002 $12.99 × 1: 12.99
     # items_total = 47.48 + 12.99 = 60.47, qty = 3
     # 60.47 < 75, qty=3 → shipping = 19.95
-    # subtotal = 60.47 + 19.95 = 80.42
-    # 60.47 < 300 → no discount
-    # total = 80.42
+    # subtotal = 60.47 (items only), total = 60.47 + 19.95 = 80.42
     return run_test(
         "CM001 × 2 + DB002 × 1 (test T scenario)",
         [make_item("CM001", 24.99, 2), make_item("DB002", 12.99, 1)],
@@ -345,7 +343,7 @@ def test_multi_item_order():
                 {"bundleDiscount": 0, "total": 12.99},
             ],
             "shippingCost": 19.95,
-            "subtotal": 80.42,
+            "subtotal": 60.47,
             "additionalDiscount": 0,
             "total": 80.42,
         },
@@ -360,14 +358,14 @@ def test_bp010_qty2():
     # first: 16.99, second at 90%: 15.291
     # item_total = 32.281 → round = 32.28
     # 32.28 < 75, qty=2 → shipping = 14.95
-    # subtotal = 32.28 + 14.95 = 47.23
+    # subtotal = 32.28 (items only), total = 32.28 + 14.95 = 47.23
     return run_test(
         "BP010 × 2 (test B scenario)",
         [make_item("BP010", 16.99, 2)],
         {
             "items": [{"bundleDiscount": 0.10, "total": 32.28}],
             "shippingCost": 14.95,
-            "subtotal": 47.23,
+            "subtotal": 32.28,
             "additionalDiscount": 0,
             "total": 47.23,
         },

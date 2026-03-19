@@ -240,7 +240,7 @@ def test_n():
 
 def test_e():
     """Test E: Expired Subscription (usr_003)"""
-    prompt = "CustomerId: usr_003\nCustomerRequest: I want to buy three Purr-fect Playtime. Can I get my subscriber discount?"
+    prompt = "CustomerId: usr_003\nCustomerRequest: I'm interested in purchasing two water bottles under your bundle deal. Would these bottles also be suitable for bathing my Chihuahua? On a related note, I'm curious - is there such a thing as bathing too much ?"
     print(f"=== Test E: Expired Subscription (usr_003) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
@@ -348,7 +348,7 @@ def test_f():
 
 def test_y():
     """Test Y: Missing Inventory Data (XYZ999)"""
-    prompt = "CustomerId: usr_001\nCustomerRequest: How much do you have in stock for product XYZ999?"
+    prompt = "CustomerId: usr_001\nCustomerRequest: How much do you have in stock for Paw-some Pampering ?"
     print(f"=== Test Y: Missing Inventory Data (XYZ999) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
@@ -419,7 +419,7 @@ def test_k():
 
 def test_p():
     """Test P: Unavailable + Advice (usr_002)"""
-    prompt = "CustomerId: usr_002\nCustomerRequest: I want to buy the limited edition low sugar treats that's sold out. Also, any tips for keeping my dog in shape?"
+    prompt = "CustomerId: usr_002\nCustomerRequest: I want to buy Paw-some Pampering. Also, any tips for keeping my dog in shape?"
     print(f"=== Test P: Unavailable + Advice (usr_002) ===")
     print(f"Prompt: {prompt}")
     print(f"Started: {datetime.now().isoformat()}\n")
