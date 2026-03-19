@@ -4,16 +4,26 @@ from typing import Any
 from strands import Agent
 from strands.models import BedrockModel
 
-import retrieve_product_info
-import retrieve_pet_care
-from inventory_management import get_inventory
-from user_management import get_user_by_id, get_user_by_email
-from pricing import calculate_order_pricing
-from response_formatter import format_order_response
+try:
+    from . import retrieve_product_info
+    from . import retrieve_pet_care
+    from .inventory_management import get_inventory
+    from .user_management import get_user_by_id, get_user_by_email
+    from .pricing import calculate_order_pricing
+    from .response_formatter import format_order_response
+except ImportError:
+    import retrieve_product_info
+    import retrieve_pet_care
+    from inventory_management import get_inventory
+    from user_management import get_user_by_id, get_user_by_email
+    from pricing import calculate_order_pricing
+    from response_formatter import format_order_response
 
 logger = logging.getLogger(__name__)
 
 logging.getLogger().setLevel(logging.INFO)
+
+_agent = None
 
 system_prompt = """
 You are an online pet store assistant for staff. Analyze customer requests and respond using tools.
@@ -190,8 +200,8 @@ def create_agent():
     guardrail_version = os.environ.get("GUARDRAIL_VERSION", "1")
 
     model = BedrockModel(
-        model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
-        max_tokens=4096,
+        model_id="anthropic.claude-haiku-4-5-20251001-v1:0",
+        max_tokens=2048,
         streaming=False,
         guardrail_id=guardrail_id,
         guardrail_version=guardrail_version,
@@ -216,9 +226,18 @@ def create_agent():
     return agent
 
 
+def _get_agent():
+    global _agent
+    if _agent is None:
+        _agent = create_agent()
+    return _agent
+
+
 def process_request(prompt):
     try:
-        agent = create_agent()
+        agent = _get_agent()
+        if hasattr(agent, "messages"):
+            agent.messages = []
         response = agent(prompt)
         return str(response)
     except Exception as e:

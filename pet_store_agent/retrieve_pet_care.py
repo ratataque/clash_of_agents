@@ -5,7 +5,7 @@ Amazon Bedrock Knowledge Base retrieval tool for pet care information.
 import os
 import boto3
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, cast
 from strands.types.tools import ToolResult, ToolUse
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 _bedrock_client = None
 
 
-def _get_bedrock_client(region_name: str = None) -> Any:
+def _get_bedrock_client(region_name: Optional[str] = None) -> Any:
     """Get or create bedrock-agent-runtime client (lazy singleton)."""
     global _bedrock_client
     if _bedrock_client is None:
@@ -100,7 +100,7 @@ def retrieve_pet_care(tool: ToolUse, **kwargs: Any) -> ToolResult:
     try:
         # Extract parameters
         query = tool_input["text"]
-        number_of_results = tool_input.get("numberOfResults", 10)
+        number_of_results = tool_input.get("numberOfResults", 5)
         region_name = tool_input.get(
             "region", os.environ.get("AWS_REGION", "us-west-2")
         )
@@ -136,7 +136,7 @@ def retrieve_pet_care(tool: ToolUse, **kwargs: Any) -> ToolResult:
             ],
         }
         logger.info(f"retrieve_pet_care returning result: {result}")
-        return result
+        return cast(ToolResult, result)
 
     except Exception as e:
         logger.error(f"retrieve_pet_care() error: {str(e)}")
@@ -146,4 +146,4 @@ def retrieve_pet_care(tool: ToolUse, **kwargs: Any) -> ToolResult:
             "content": [{"text": f"Error retrieving pet care information: {str(e)}"}],
         }
         logger.info(f"retrieve_pet_care returning result: {result}")
-        return result
+        return cast(ToolResult, result)
