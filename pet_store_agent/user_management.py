@@ -6,14 +6,25 @@ from strands import tool
 
 logger = logging.getLogger(__name__)
 
+_lambda_client = None
+
+
+def _get_lambda_client() -> object:
+    """Get or create Lambda client (lazy singleton)."""
+    global _lambda_client
+    if _lambda_client is None:
+        _lambda_client = boto3.client("lambda")
+    return _lambda_client
+
+
 @tool
 def get_user_by_id(user_id: str) -> dict:
     """
     Get user information by user ID.
-    
+
     Args:
         user_id: User ID to retrieve information for
-    
+
     Returns:
         JSON string with user information
 
@@ -31,7 +42,7 @@ def get_user_by_id(user_id: str) -> dict:
     Sample Response Body:
     {
         "id": "usr_001",
-        "name": "John Doe", 
+        "name": "John Doe",
         "email": "john.doe@virtualpetstore.com",
         "subscription_status": "active|expired",
         "subscription_end_date": "ISO-8601 date",
@@ -46,50 +57,53 @@ def get_user_by_id(user_id: str) -> dict:
     }
     """
     logger.info(f"get_user_by_id called with input: user_id={user_id}")
-    
-    lambda_client = boto3.client('lambda')
-    
+
+    lambda_client = _get_lambda_client()
+
     payload = {
         "function": "getUserById",
-        "parameters": [
-            {
-                "name": "user_id",
-                "value": user_id
-            }
-        ]
+        "parameters": [{"name": "user_id", "value": user_id}],
     }
-    
+
     try:
         response = lambda_client.invoke(
-            FunctionName=os.environ.get('SYSTEM_FUNCTION_2_NAME'),
-            Payload=json.dumps(payload)
+            FunctionName=os.environ.get("SYSTEM_FUNCTION_2_NAME"),
+            Payload=json.dumps(payload),
         )
-        
-        lambda_response = json.loads(response['Payload'].read())
+
+        lambda_response = json.loads(response["Payload"].read())
         # Extract the actual data from the nested response structure
-        actual_data = json.loads(lambda_response['response']['functionResponse']['responseBody']['TEXT']['body'])
-        
+        actual_data = json.loads(
+            lambda_response["response"]["functionResponse"]["responseBody"]["TEXT"][
+                "body"
+            ]
+        )
+
         result = {"status": "success", "content": [{"text": json.dumps(actual_data)}]}
         logger.info(f"get_user_by_id returning result: {result}")
         return result
     except Exception as e:
         logger.error(f"get_user_by_id() error: {str(e)}")
-        
-        result = {"status": "error", "content": [{"text": f"Failed to get user by ID: {str(e)}"}]}
+
+        result = {
+            "status": "error",
+            "content": [{"text": f"Failed to get user by ID: {str(e)}"}],
+        }
         logger.info(f"get_user_by_id returning result: {result}")
         return result
+
 
 @tool
 def get_user_by_email(user_email: str) -> dict:
     """
     Get user information by email address.
-    
+
     Args:
         user_email: User email to retrieve information for
-    
+
     Returns:
         JSON string with user information
-    
+
     Sample Input Format:
     {
         "function": "getUserByEmail",
@@ -100,11 +114,11 @@ def get_user_by_email(user_email: str) -> dict:
             }
         ]
     }
-    
+
     Sample Response Body:
     {
         "id": "usr_001",
-        "name": "John Doe", 
+        "name": "John Doe",
         "email": "john.doe@virtualpetstore.com",
         "subscription_status": "active|expired",
         "subscription_end_date": "ISO-8601 date",
@@ -119,35 +133,37 @@ def get_user_by_email(user_email: str) -> dict:
     }
     """
     logger.info(f"get_user_by_email called with input: user_email={user_email}")
-    
-    lambda_client = boto3.client('lambda')
-    
+
+    lambda_client = _get_lambda_client()
+
     payload = {
         "function": "getUserByEmail",
-        "parameters": [
-            {
-                "name": "user_email",
-                "value": user_email
-            }
-        ]
+        "parameters": [{"name": "user_email", "value": user_email}],
     }
-    
+
     try:
         response = lambda_client.invoke(
-            FunctionName=os.environ.get('SYSTEM_FUNCTION_2_NAME'),
-            Payload=json.dumps(payload)
+            FunctionName=os.environ.get("SYSTEM_FUNCTION_2_NAME"),
+            Payload=json.dumps(payload),
         )
-        
-        lambda_response = json.loads(response['Payload'].read())
+
+        lambda_response = json.loads(response["Payload"].read())
         # Extract the actual data from the nested response structure
-        actual_data = json.loads(lambda_response['response']['functionResponse']['responseBody']['TEXT']['body'])
-        
+        actual_data = json.loads(
+            lambda_response["response"]["functionResponse"]["responseBody"]["TEXT"][
+                "body"
+            ]
+        )
+
         result = {"status": "success", "content": [{"text": json.dumps(actual_data)}]}
         logger.info(f"get_user_by_email returning result: {result}")
         return result
     except Exception as e:
         logger.error(f"get_user_by_email() error: {str(e)}")
-        
-        result = {"status": "error", "content": [{"text": f"Failed to get user by email: {str(e)}"}]}
+
+        result = {
+            "status": "error",
+            "content": [{"text": f"Failed to get user by email: {str(e)}"}],
+        }
         logger.info(f"get_user_by_email returning result: {result}")
         return result

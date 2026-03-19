@@ -1,6 +1,7 @@
 """
 Amazon Bedrock Knowledge Base retrieval tool for pet care information.
 """
+
 import os
 import boto3
 import logging
@@ -8,6 +9,20 @@ from typing import Any, Dict, List
 from strands.types.tools import ToolResult, ToolUse
 
 logger = logging.getLogger(__name__)
+
+_bedrock_client = None
+
+
+def _get_bedrock_client(region_name: str = None) -> Any:
+    """Get or create bedrock-agent-runtime client (lazy singleton)."""
+    global _bedrock_client
+    if _bedrock_client is None:
+        _bedrock_client = boto3.client(
+            "bedrock-agent-runtime",
+            region_name=region_name or os.environ.get("AWS_REGION", "us-west-2"),
+        )
+    return _bedrock_client
+
 
 TOOL_SPEC = {
     "name": "retrieve_pet_care",
@@ -42,7 +57,9 @@ TOOL_SPEC = {
 }
 
 
-def filter_results_by_score(results: List[Dict[str, Any]], min_score: float) -> List[Dict[str, Any]]:
+def filter_results_by_score(
+    results: List[Dict[str, Any]], min_score: float
+) -> List[Dict[str, Any]]:
     """Filter results based on minimum score threshold."""
     return [result for result in results if result.get("score", 0.0) >= min_score]
 
@@ -54,7 +71,11 @@ def format_results_for_display(results: List[Dict[str, Any]]) -> str:
 
     formatted = []
     for result in results:
-        doc_id = result.get("location", {}).get("customDocumentLocation", {}).get("id", "Unknown")
+        doc_id = (
+            result.get("location", {})
+            .get("customDocumentLocation", {})
+            .get("id", "Unknown")
+        )
         score = result.get("score", 0.0)
         formatted.append(f"\nScore: {score:.4f}")
         formatted.append(f"Document ID: {doc_id}")
@@ -69,22 +90,24 @@ def format_results_for_display(results: List[Dict[str, Any]]) -> str:
 
 def retrieve_pet_care(tool: ToolUse, **kwargs: Any) -> ToolResult:
     """Retrieve pet care information from Amazon Bedrock Knowledge Base."""
-    
+
     tool_use_id = tool["toolUseId"]
     tool_input = tool["input"]
     logger.info(f"retrieve_pet_care called with input: {tool_input}")
-    
-    kb_id = os.environ.get('KNOWLEDGE_BASE_2_ID')
+
+    kb_id = os.environ.get("KNOWLEDGE_BASE_2_ID")
 
     try:
         # Extract parameters
         query = tool_input["text"]
         number_of_results = tool_input.get("numberOfResults", 10)
-        region_name = tool_input.get("region", os.environ.get('AWS_REGION', 'us-west-2'))
+        region_name = tool_input.get(
+            "region", os.environ.get("AWS_REGION", "us-west-2")
+        )
         min_score = tool_input.get("score", 0.25)
 
-        # Create a new client for each invocation
-        bedrock_agent_runtime_client = boto3.client("bedrock-agent-runtime", region_name=region_name)
+        # Use singleton client
+        bedrock_agent_runtime_client = _get_bedrock_client(region_name)
 
         # Perform retrieval
         response = bedrock_agent_runtime_client.retrieve(
@@ -107,7 +130,9 @@ def retrieve_pet_care(tool: ToolUse, **kwargs: Any) -> ToolResult:
             "toolUseId": tool_use_id,
             "status": "success",
             "content": [
-                {"text": f"Retrieved {len(filtered_results)} pet care results with score >= {min_score}:\n{formatted_results}"}
+                {
+                    "text": f"Retrieved {len(filtered_results)} pet care results with score >= {min_score}:\n{formatted_results}"
+                }
             ],
         }
         logger.info(f"retrieve_pet_care returning result: {result}")
