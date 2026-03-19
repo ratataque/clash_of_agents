@@ -2,7 +2,9 @@ import os
 import logging
 import json
 import re
-from typing import Any
+import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, cast
 from strands import Agent
 from strands.models import BedrockModel
 
@@ -349,16 +351,232 @@ def _check_fast_reject(prompt):
     return None
 
 
+def _extract_text_content(tool_result):
+    if not isinstance(tool_result, dict):
+        return str(tool_result)
+
+    content = tool_result.get("content")
+    if not isinstance(content, list):
+        return json.dumps(tool_result)
+
+    parts = []
+    for item in content:
+        if isinstance(item, dict) and isinstance(item.get("text"), str):
+            parts.append(item["text"])
+
+    return "\n".join(parts) if parts else json.dumps(tool_result)
+
+
+def _invoke_tool_function(tool_func, **kwargs):
+    type_error = None
+    for candidate in (
+        tool_func,
+        getattr(tool_func, "fn", None),
+        getattr(tool_func, "__wrapped__", None),
+    ):
+        if candidate is None:
+            continue
+        try:
+            return candidate(**kwargs)
+        except TypeError as exc:
+            type_error = exc
+
+    if type_error is not None:
+        raise type_error
+    raise RuntimeError(f"Unable to invoke tool function: {tool_func}")
+
+
+def _is_pet_care_question(text):
+    return bool(
+        re.search(
+            r"\b(bath|groom|entertain|tips|advice|care|health|feeding|train|exercise)\b",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _has_product_intent(text):
+    if re.search(r"\b[A-Z]{2,}\d{3}\b", text):
+        return True
+
+    product_intent_keywords = [
+        "price",
+        "cost",
+        "stock",
+        "inventory",
+        "order",
+        "buy",
+        "purchase",
+        "product",
+        "treat",
+        "toy",
+        "bottle",
+        "pampering",
+        "delights",
+        "unit",
+    ]
+    normalized = text.lower()
+    return any(keyword in normalized for keyword in product_intent_keywords)
+
+
+def _extract_product_query(text):
+    segments = [
+        segment.strip() for segment in re.split(r"[\n.!?]+", text) if segment.strip()
+    ]
+    non_care_segments = [
+        segment for segment in segments if not _is_pet_care_question(segment)
+    ]
+    if non_care_segments:
+        return " ".join(non_care_segments)
+    return text.strip()
+
+
+def _extract_pet_care_query(text):
+    segments = [
+        segment.strip() for segment in re.split(r"[\n.!?]+", text) if segment.strip()
+    ]
+    care_segments = [segment for segment in segments if _is_pet_care_question(segment)]
+    if care_segments:
+        return " ".join(care_segments)
+    return text.strip()
+
+
+def _prefetch_data(prompt):
+    try:
+        if not isinstance(prompt, str) or not prompt.strip():
+            return None
+
+        customer_id_match = re.search(r"CustomerId:\s*(usr_\w+)", prompt, re.IGNORECASE)
+        customer_id = customer_id_match.group(1) if customer_id_match else None
+
+        customer_request_match = re.search(
+            r"CustomerRequest:\s*(.*)", prompt, re.IGNORECASE | re.DOTALL
+        )
+        customer_request = (
+            customer_request_match.group(1).strip()
+            if customer_request_match
+            else prompt.strip()
+        )
+
+        has_pet_care = _is_pet_care_question(customer_request)
+        has_product = _has_product_intent(customer_request)
+
+        product_query = (
+            _extract_product_query(customer_request) if has_product else None
+        )
+        pet_care_query = (
+            _extract_pet_care_query(customer_request) if has_pet_care else None
+        )
+
+        if not customer_id and not has_product and not has_pet_care:
+            return None
+
+        prefetched_results = {}
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {}
+
+            if customer_id:
+                futures[
+                    executor.submit(
+                        _invoke_tool_function, get_user_by_id, user_id=customer_id
+                    )
+                ] = "user"
+
+            if has_product and product_query:
+                product_tool_use = {
+                    "toolUseId": str(uuid.uuid4()),
+                    "input": {"text": product_query},
+                }
+                futures[
+                    executor.submit(
+                        retrieve_product_info.retrieve_product_info,
+                        cast(Any, product_tool_use),
+                    )
+                ] = "product"
+
+            if has_pet_care and pet_care_query:
+                pet_care_tool_use = {
+                    "toolUseId": str(uuid.uuid4()),
+                    "input": {"text": pet_care_query},
+                }
+                futures[
+                    executor.submit(
+                        retrieve_pet_care.retrieve_pet_care,
+                        cast(Any, pet_care_tool_use),
+                    )
+                ] = "pet_care"
+
+            for future in as_completed(futures):
+                label = futures[future]
+                try:
+                    prefetched_results[label] = future.result()
+                except Exception as exc:
+                    logger.warning(f"Pre-fetch task failed for {label}: {exc}")
+
+        product_text = _extract_text_content(prefetched_results.get("product", {}))
+        product_code_match = re.search(r"\b([A-Z]{2,}\d{3})\b", product_text)
+        if product_code_match:
+            product_code = product_code_match.group(1)
+            try:
+                prefetched_results["inventory"] = _invoke_tool_function(
+                    get_inventory, product_code=product_code
+                )
+            except Exception as exc:
+                logger.warning(f"Pre-fetch task failed for inventory: {exc}")
+
+        context_lines = [
+            "[PRE-FETCHED CONTEXT — use this data instead of calling the tools again]",
+            "The following data has already been retrieved. Do NOT call retrieve_product_info, retrieve_pet_care, get_user_by_id, or get_inventory again — use this data directly.",
+        ]
+
+        has_data = False
+        if "user" in prefetched_results:
+            context_lines.append(
+                f"User Data: {_extract_text_content(prefetched_results['user'])}"
+            )
+            has_data = True
+        if "product" in prefetched_results:
+            context_lines.append(
+                f"Product Info: {_extract_text_content(prefetched_results['product'])}"
+            )
+            has_data = True
+        if "pet_care" in prefetched_results:
+            context_lines.append(
+                f"Pet Care Info: {_extract_text_content(prefetched_results['pet_care'])}"
+            )
+            has_data = True
+        if "inventory" in prefetched_results:
+            context_lines.append(
+                f"Inventory: {_extract_text_content(prefetched_results['inventory'])}"
+            )
+            has_data = True
+
+        if not has_data:
+            return None
+
+        context_lines.append("[END PRE-FETCHED CONTEXT]")
+        context_lines.append("")
+        context_lines.append(prompt)
+        return "\n".join(context_lines)
+    except Exception as exc:
+        logger.warning(f"Pre-fetch orchestration failed: {exc}")
+        return None
+
+
 def process_request(prompt):
     fast_response = _check_fast_reject(prompt)
     if fast_response is not None:
         return fast_response
 
     try:
+        prefetched_prompt = _prefetch_data(prompt)
+        final_prompt = prefetched_prompt if prefetched_prompt is not None else prompt
+
         agent = _get_agent()
         if hasattr(agent, "messages"):
             agent.messages = []
-        response = agent(prompt)
+        response = agent(final_prompt)
         return str(response)
     except Exception as e:
         error_message = str(e)
