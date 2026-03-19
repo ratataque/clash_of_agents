@@ -1,5 +1,7 @@
 import os
 import logging
+import json
+import re
 from typing import Any
 from strands import Agent
 from strands.models import BedrockModel
@@ -233,7 +235,125 @@ def _get_agent():
     return _agent
 
 
+def _make_rejection_response(message):
+    response = {
+        "status": "Reject",
+        "message": message,
+        "customerType": "Guest",
+        "items": [],
+        "shippingCost": 0,
+        "petAdvice": "",
+        "subtotal": 0,
+        "additionalDiscount": 0,
+        "total": 0,
+    }
+    return json.dumps(response)
+
+
+def _check_fast_reject(prompt):
+    if not isinstance(prompt, str):
+        return None
+
+    normalized = prompt.lower()
+    if not normalized.strip():
+        return None
+
+    injection_patterns = [
+        r"\bignore\s+previous\b",
+        r"\bignore\s+all\b",
+        r"\breveal\s+your\s+system\s+prompt\b",
+        r"\bsystem\s+prompt\b",
+        r"\binternal\s+rules\b",
+        r"\byou\s+are\s+now\b",
+        r"\bforget\s+your\s+instructions\b",
+        r"\boverride\b",
+        r"\bdisregard\b",
+    ]
+    if any(
+        re.search(pattern, normalized, re.IGNORECASE) for pattern in injection_patterns
+    ):
+        return _make_rejection_response(
+            "Sorry! We can't accept your request. We only handle pet store orders for cats and dogs."
+        )
+
+    harmful_phrase_patterns = [
+        r"\bharm\s+animals\b",
+        r"\banimal\s+cruelty\b",
+    ]
+    has_harmful_phrase = any(
+        re.search(pattern, normalized, re.IGNORECASE)
+        for pattern in harmful_phrase_patterns
+    )
+    has_harm_verb = bool(
+        re.search(r"\b(poison|hurt|abuse|kill|harm)\b", normalized, re.IGNORECASE)
+    )
+    has_animal_context = bool(
+        re.search(
+            r"\b(animal|animals|pet|pets|cat|dog|hamster|parrot|bird|fish|rabbit|snake|turtle|lizard|guinea\s+pig|ferret)\b",
+            normalized,
+            re.IGNORECASE,
+        )
+    )
+    if has_harmful_phrase or (has_harm_verb and has_animal_context):
+        return _make_rejection_response(
+            "Sorry! We can't accept your request. We do not support harmful activities."
+        )
+
+    has_supported_pet_context = bool(
+        re.search(r"\b(cat|dog|kitten|puppy|cats|dogs|kittens|puppies)\b", normalized)
+    )
+    if has_supported_pet_context:
+        return None
+
+    unsupported_pet_patterns = [
+        r"\bhamster\b",
+        r"\bparrot\b",
+        r"\bbird\b",
+        r"\bfish\b",
+        r"\brabbit\b",
+        r"\bsnake\b",
+        r"\bturtle\b",
+        r"\blizard\b",
+        r"\bguinea\s+pig\b",
+        r"\bferret\b",
+    ]
+    if any(
+        re.search(pattern, normalized, re.IGNORECASE)
+        for pattern in unsupported_pet_patterns
+    ):
+        return _make_rejection_response(
+            "Sorry! We can't accept your request. We only sell products for cats and dogs."
+        )
+
+    unsupported_product_patterns = [
+        r"\bbird\s+seed\b",
+        r"\bbird\s+food\b",
+        r"\bfish\s+food\b",
+        r"\bhamster\s+food\b",
+        r"\bparrot\s+food\b",
+        r"\brabbit\s+food\b",
+        r"\bguinea\s+pig\s+food\b",
+        r"\bferret\s+food\b",
+        r"\bsnake\s+food\b",
+        r"\bturtle\s+food\b",
+        r"\blizard\s+food\b",
+    ]
+    if any(
+        re.search(pattern, normalized, re.IGNORECASE)
+        for pattern in unsupported_product_patterns
+    ):
+        return _make_rejection_response(
+            "Sorry! We can't accept your request. We only sell products for cats and dogs."
+        )
+
+    return None
+
+
 def process_request(prompt):
+    fast_response = _check_fast_reject(prompt)
+    if fast_response is not None:
+        return fast_response
+
     try:
         agent = _get_agent()
         if hasattr(agent, "messages"):
